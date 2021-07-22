@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   liblcms2-2 \
   ttf-dejavu-core
 
-FROM gcr.io/distroless/java:8
+FROM gcr.io/distroless/java11-debian11
 
 # Copy over dependancies for Apache FOP, missing from gcr's JRE
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
@@ -83,9 +83,10 @@ ENV JAVA_TOOL_OPTIONS \
   -Dexist.configurationFile=/exist/etc/conf.xml \
   -Djetty.home=/exist \
   -Dexist.jetty.config=/exist/etc/jetty/standard.enabled-jetty-configs \
+  -XX:+UseContainerSupport \
   -XX:+UnlockExperimentalVMOptions \
-  -XX:+UseCGroupMemoryLimitForHeap \
-  -XX:+UseG1GC \
+  -XX:+UseShenandoahGC \
+  -XX:ShenandoahGCHeuristics=compact \
   -XX:+UseStringDeduplication \
   -XX:MaxRAMFraction=1 \
   -XX:+ExitOnOutOfMemoryError
