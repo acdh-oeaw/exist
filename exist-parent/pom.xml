@@ -100,7 +100,7 @@
 
         <contact.email>info@exist-db.org</contact.email>
 
-        <ant.version>1.10.10</ant.version>
+        <ant.version>1.10.12</ant.version>
         <apache.httpcomponents.version>4.5.13</apache.httpcomponents.version>
         <apache.httpcomponents.core.version>4.4.14</apache.httpcomponents.core.version>
         <apache.xmlrpc.version>3.1.3</apache.xmlrpc.version>
@@ -807,7 +807,7 @@
                 <configuration>
                     <licenseSets>
                         <licenseSet>
-                            <header>${project.parent.relativePath}/LGPL-21-license.template.txt</header>
+                    <header>${project.parent.relativePath}/LGPL-21-license.template.txt</header>
                             <excludes>
                                 <exclude>FDB-backport-LGPL-21-ONLY-license.template.txt</exclude>
                             </excludes>
@@ -967,8 +967,8 @@
                 </reportSets>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-report-plugin</artifactId>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-report-plugin</artifactId>
                 <configuration>
                     <aggregate>true</aggregate>
                 </configuration>
