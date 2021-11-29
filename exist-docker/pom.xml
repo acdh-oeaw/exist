@@ -49,6 +49,7 @@
         <assemble.dir>${project.build.directory}/exist-docker-${project.version}-docker-dir</assemble.dir>
         <exist.uber.jar.filename>exist.uber.jar</exist.uber.jar.filename>
         <docker.tag>latest</docker.tag>
+        <docker.org>existdb</docker.org>
     </properties>
 
     <dependencies>
@@ -206,7 +207,7 @@
                   <verbose>true</verbose>
                     <images>
                         <image>
-                            <name>existdb/existdb:%v</name>
+                            <name>${docker.org}/existdb:%v</name>
                             <alias>exist-ci</alias>
                             <build>
                                 <tags>
