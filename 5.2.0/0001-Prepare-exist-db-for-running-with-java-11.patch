@@ -1,0 +1,46 @@
+From ca4f8ceaf1d15fed30dd6408c353b7a67215f978 Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 22 Jul 2021 19:23:42 +0200
+Subject: [PATCH 1/7] Prepare exist-db for running with java 11.
+
+---
+ exist-docker/pom.xml            | 5 +++++
+ extensions/modules/mail/pom.xml | 6 ++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/exist-docker/pom.xml b/exist-docker/pom.xml
+index 0af6d8bb2c..426efc3a9d 100644
+--- a/exist-docker/pom.xml
++++ b/exist-docker/pom.xml
+@@ -161,6 +161,11 @@
+                                     <addHeader>false</addHeader>
+                                 </transformer>&gt;
+                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <manifestEntries>
++                                        <Multi-Release>true</Multi-Release>
++                                    </manifestEntries>
++                                </transformer>
+                             </transformers>
+                         </configuration>
+                     </execution>
+diff --git a/extensions/modules/mail/pom.xml b/extensions/modules/mail/pom.xml
+index e3057d58bd..94e206f8c3 100644
+--- a/extensions/modules/mail/pom.xml
++++ b/extensions/modules/mail/pom.xml
+@@ -43,6 +43,12 @@
+             <groupId>org.apache.logging.log4j</groupId>
+             <artifactId>log4j-api</artifactId>
+         </dependency>
++        
++        <dependency>
++          <groupId>javax.activation</groupId>
++          <artifactId>activation</artifactId>
++          <version>1.1.1</version>
++        </dependency>
+ 
+         <dependency>
+             <groupId>com.sun.activation</groupId>
+-- 
+2.34.1.windows.1
+

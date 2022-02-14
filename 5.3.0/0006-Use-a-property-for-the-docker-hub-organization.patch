@@ -1,0 +1,33 @@
+From 47ee9551c547ad097b1f6874a4a6fba170fac934 Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Mon, 29 Nov 2021 17:41:16 +0100
+Subject: [PATCH 6/7] Use a property for the docker hub organization.
+
+---
+ exist-docker/pom.xml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/exist-docker/pom.xml b/exist-docker/pom.xml
+index aa14deb34c..d69630276d 100644
+--- a/exist-docker/pom.xml
++++ b/exist-docker/pom.xml
+@@ -49,6 +49,7 @@
+         <assemble.dir>${project.build.directory}/exist-docker-${project.version}-docker-dir</assemble.dir>
+         <exist.uber.jar.filename>exist.uber.jar</exist.uber.jar.filename>
+         <docker.tag>latest</docker.tag>
++        <docker.org>existdb</docker.org>
+     </properties>
+ 
+     <dependencies>
+@@ -206,7 +207,7 @@
+                   <verbose>true</verbose>
+                     <images>
+                         <image>
+-                            <name>existdb/existdb:%v</name>
++                            <name>${docker.org}/existdb:%v</name>
+                             <alias>exist-ci</alias>
+                             <build>
+                                 <tags>
+-- 
+2.34.1.windows.1
+

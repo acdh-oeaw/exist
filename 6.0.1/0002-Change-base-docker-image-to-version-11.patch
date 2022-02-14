@@ -1,0 +1,38 @@
+From 375f738273731825a55942aae245215e3546b48a Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 22 Jul 2021 19:24:37 +0200
+Subject: [PATCH 2/7] Change base docker image to version 11.
+
+---
+ exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
+index f9c103e690..7048f23eb3 100644
+--- a/exist-docker/src/main/resources-filtered/Dockerfile
++++ b/exist-docker/src/main/resources-filtered/Dockerfile
+@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+   liblcms2-2 \
+   ttf-dejavu-core
+ 
+-FROM gcr.io/distroless/java:8
++FROM gcr.io/distroless/java:11
+ 
+ # Copy over dependancies for Apache FOP, missing from gcr's JRE
+ COPY --from=builder /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
+@@ -83,9 +83,10 @@ ENV JAVA_TOOL_OPTIONS \
+   -Dexist.configurationFile=/exist/etc/conf.xml \
+   -Djetty.home=/exist \
+   -Dexist.jetty.config=/exist/etc/jetty/standard.enabled-jetty-configs \
++  -XX:+UseContainerSupport \
+   -XX:+UnlockExperimentalVMOptions \
+-  -XX:+UseCGroupMemoryLimitForHeap \
+-  -XX:+UseG1GC \
++  -XX:+UseShenandoahGC \
++  -XX:ShenandoahGCHeuristics=compact \
+   -XX:+UseStringDeduplication \
+   -XX:MaxRAMFraction=1 \
+   -XX:+ExitOnOutOfMemoryError
+-- 
+2.34.1.windows.1
+
