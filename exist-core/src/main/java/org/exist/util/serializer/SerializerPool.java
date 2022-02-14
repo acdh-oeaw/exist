@@ -21,56 +21,59 @@
  */
 package org.exist.util.serializer;
 
-import org.apache.commons.pool.KeyedPoolableObjectFactory;
-import org.apache.commons.pool.impl.StackKeyedObjectPool;
-import org.exist.storage.serializers.Serializer;
+import net.jcip.annotations.ThreadSafe;
+import org.apache.commons.pool2.KeyedPooledObjectFactory;
+import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
+import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 
-/**
- * @author wolf
- *
- */
-public class SerializerPool extends StackKeyedObjectPool {
+@ThreadSafe
+public class SerializerPool extends GenericKeyedObjectPool<Class<?>, Object> {
 
-    private final static SerializerPool instance = new SerializerPool(new SerializerObjectFactory(), 10, 1);
-    
-    public final static SerializerPool getInstance() {
+    private static final SerializerPool instance = new SerializerPool(new SerializerObjectFactory(), 10, 1);
+
+    public static SerializerPool getInstance() {
         return instance;
     }
-    
+
     /**
-     * @param factory the object factory
-     * @param max the maximum size of the pool
-     * @param init the initial size of the pool
+     * Constructs a Serializer Pool.
+     *
+     * @param factory the serializer object factory
+     * @param maxIdle the maximum number of idle instances in the pool
+     * @param initSize initial size of the pool (this specifies the size of the container, it does not cause the pool to be pre-populated.) (unused)
      */
-    public SerializerPool(KeyedPoolableObjectFactory factory, int max, int init) {
-        super(factory, max, init);
+    public SerializerPool(final KeyedPooledObjectFactory<Class<?>, Object> factory, final int maxIdle, @Deprecated final int initSize) {
+        super(factory, toConfig(maxIdle));
     }
-    
-    public synchronized Object borrowObject(Object key) {
+
+    private static GenericKeyedObjectPoolConfig toConfig(final int maxIdle) {
+        final GenericKeyedObjectPoolConfig<Object> config = new GenericKeyedObjectPoolConfig<>();
+        config.setBlockWhenExhausted(false);
+        config.setLifo(true);
+        config.setMaxIdlePerKey(maxIdle);
+        config.setMaxTotalPerKey(-1);       // TODO(AR) is this the best way to allow us to temporarily exceed the size of the pool?
+        config.setJmxNameBase("org.exist.management.exist:type=SerializerPool,name=");
+        return config;
+    }
+
+    @Override
+    public Object borrowObject(final Class<?> key) {
         try {
             return super.borrowObject(key);
         } catch (final Exception e) {
-            throw new IllegalStateException("Error while creating serializer: " + e.getMessage());
+            throw new IllegalStateException("Error while borrowing " + key.getSimpleName() + ": " + e.getMessage());
         }
     }
-    
-    public DOMStreamer borrowDOMStreamer(Serializer delegate) {
-        try {
-            final ExtendedDOMStreamer serializer = (ExtendedDOMStreamer)borrowObject(DOMStreamer.class);
-            serializer.setSerializer(delegate);
-            return serializer;
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
+
+    public void returnObject(final Object obj) {
+        if (obj == null) {
+            return;
         }
-    }
-    
-    public synchronized void returnObject(Object obj) {
-        if (obj == null)
-            {return;}
+
         try {
             super.returnObject(obj.getClass(), obj);
         } catch (final Exception e) {
-            throw new IllegalStateException("Error while returning serializer: " + e.getMessage());
+            throw new IllegalStateException("Error while returning "+ obj.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 }

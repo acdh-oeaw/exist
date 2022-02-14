@@ -57,6 +57,11 @@ import org.exist.util.crypto.digest.MessageDigest;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.TerminatedException;
 import org.w3c.dom.Document;
+import org.w3c.dom.DocumentType;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 import javax.annotation.Nullable;
 import javax.xml.stream.XMLStreamException;
@@ -354,7 +359,7 @@ public abstract class DBBroker implements AutoCloseable {
      *
      * @param transaction The transaction, which registers the acquired write locks. The locks should be released on commit/abort.
      * @param uri The collection's URI
-     * @param creationAttributes the attributes to use if the collection needs to be created.
+     * @param creationAttributes the attributes to use if the collection needs to be created, the first item is a Permission (or null for default), the second item is a Creation Date.
      * @return The collection or <code>null</code> if no collection matches the path
      * @throws PermissionDeniedException If the current user does not have appropriate permissions
      * @throws IOException If an error occurs whilst reading (get) or writing (create) a Collection to disk
@@ -362,6 +367,98 @@ public abstract class DBBroker implements AutoCloseable {
      */
     public abstract Collection getOrCreateCollection(Txn transaction, XmldbURI uri, Optional<Tuple2<Permission, Long>> creationAttributes)
             throws PermissionDeniedException, IOException, TriggerException;
+
+    /**
+     * Stores a document.
+     * Since the process is dependent on the collection configuration,
+     * the collection acquires a write lock during the process.
+     *
+     * @param transaction The database transaction
+     * @param name        The name (without path) of the document
+     * @param source      The source of the content for the new document to store
+     * @param mimeType    The mimeType of the document to store, or null if unknown.
+     * @param collection  The collection to store the document into
+     *
+     * @throws PermissionDeniedException if user has not sufficient rights
+     * @throws LockException if broker is locked
+     * @throws IOException in case of I/O errors
+     * @throws TriggerException in case of eXist-db trigger error
+     * @throws EXistException general eXist-db exception
+     * @throws SAXException internal SAXException
+     */
+    public abstract void storeDocument(Txn transaction, XmldbURI name, InputSource source, @Nullable MimeType mimeType, Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException;
+
+    /**
+     * Stores a document.
+     * Since the process is dependent on the collection configuration,
+     * the collection acquires a write lock during the process.
+     *
+     * @param transaction       The database transaction
+     * @param name              The name (without path) of the document
+     * @param source            The source of the content for the new document to store
+     * @param mimeType          The mimeType of the document to store, or null if unknown.
+     *                          If null, application/octet-stream will be used to store a binary document.
+     * @param createdDate       The created date to set for the document, or if null the date is set to 'now'
+     * @param lastModifiedDate  The lastModified date to set for the document, or if null the date is set to the {@code createdDate}
+     * @param permission        A specific permission to set on the document, or null for the default permission
+     * @param documentType      A document type declaration, or null if absent or a binary document is being stored
+     * @param xmlReader         A custom XML Reader (e.g. a HTML to XHTML converting reader), or null to use the default XML reader or if a binary document is being stored
+     * @param collection        The collection to store the document into
+     *
+     * @throws PermissionDeniedException if user has not sufficient rights
+     * @throws LockException if broker is locked
+     * @throws IOException in case of I/O errors
+     * @throws TriggerException in case of eXist-db trigger error
+     * @throws EXistException general eXist-db exception
+     * @throws SAXException internal SAXException
+     */
+    public abstract void storeDocument(Txn transaction, XmldbURI name, InputSource source, @Nullable MimeType mimeType, @Nullable Date createdDate, @Nullable Date lastModifiedDate, @Nullable Permission permission, @Nullable DocumentType documentType, @Nullable XMLReader xmlReader, Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException;
+
+    /**
+     * Stores a document.
+     * Since the process is dependent on the collection configuration,
+     * the collection acquires a write lock during the process.
+     *
+     * @param transaction The database transaction
+     * @param name        The name (without path) of the document
+     * @param node        The DOM Node to store as a new document
+     * @param mimeType    The mimeType of the document to store, or null if unknown.
+     * @param collection  The collection to store the document into
+     *
+     * @throws PermissionDeniedException if user has not sufficient rights
+     * @throws LockException if broker is locked
+     * @throws IOException in case of I/O errors
+     * @throws TriggerException in case of eXist-db trigger error
+     * @throws EXistException general eXist-db exception
+     * @throws SAXException internal SAXException
+     */
+    public abstract void storeDocument(Txn transaction, XmldbURI name, Node node, @Nullable MimeType mimeType, Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException;
+
+    /**
+     * Stores a document.
+     * Since the process is dependent on the collection configuration,
+     * the collection acquires a write lock during the process.
+     *
+     * @param transaction       The database transaction
+     * @param name              The name (without path) of the document
+     * @param node              The DOM Node to store as a new document
+     * @param mimeType          The mimeType of the document to store, or null if unknown.
+     *                          If null, application/octet-stream will be used to store a binary document.
+     * @param createdDate       The created date to set for the document, or if null the date is set to 'now'
+     * @param lastModifiedDate  The lastModified date to set for the document, or if null the date is set to the {@code createdDate}
+     * @param permission        A specific permission to set on the document, or null for the default permission
+     * @param documentType      A document type declaration, or null if absent or a binary document is being stored
+     * @param xmlReader         A custom XML Reader (e.g. a HTML to XHTML converting reader), or null to use the default XML reader or if a binary document is being stored
+     * @param collection        The collection to store the document into
+     *
+     * @throws PermissionDeniedException if user has not sufficient rights
+     * @throws LockException if broker is locked
+     * @throws IOException in case of I/O errors
+     * @throws TriggerException in case of eXist-db trigger error
+     * @throws EXistException general eXist-db exception
+     * @throws SAXException internal SAXException
+     */
+    public abstract void storeDocument(Txn transaction, XmldbURI name, Node node, @Nullable MimeType mimeType, @Nullable Date createdDate, @Nullable Date lastModifiedDate, @Nullable Permission permission, @Nullable DocumentType documentType, @Nullable XMLReader xmlReader, Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException;
 
     /**
      * Returns the configuration object used to initialize the current database
@@ -456,18 +553,57 @@ public abstract class DBBroker implements AutoCloseable {
     }
 
     /**
-     * Get an instance of the Serializer used for converting nodes back to XML.
-     * Subclasses of DBBroker may have specialized subclasses of Serializer to
-     * convert a node into an XML-string
+     * Get an instance of the Serializer used for converting nodes back to XML
+     * from the pool.
+     *
+     * After use {@link #returnSerializer(Serializer)} should always be called.
+     *
      * @return the {@link Serializer}
      */
+    public abstract Serializer borrowSerializer();
+
+    /**
+     * Return an instance of the Serializer used for converting nodes back to XML
+     * to the pool.
+     *
+     * The {@code serializer} should have been obtained by {@link #borrowSerializer()}
+     *
+     * @param serializer the {@link Serializer}
+     */
+    public abstract void returnSerializer(Serializer serializer);
+
+    /**
+     * Get's a new Serializer.
+     *
+     * @return a serializer
+     *
+     * @deprecated Use {@link #borrowSerializer()} and {@link #returnSerializer(Serializer)} instead. Will be removed in eXist-db 6.0.0
+     */
+    @Deprecated
     public abstract Serializer getSerializer();
 
-    public abstract NativeValueIndex getValueIndex();
-
+    /**
+     * Get's a new Serializer.
+     *
+     * @return a serializer
+     *
+     * @deprecated Use {@link #borrowSerializer()} and {@link #returnSerializer(Serializer)} instead. Will be removed in eXist-db 6.0.0
+     */
+    @Deprecated
     public abstract Serializer newSerializer();
 
-    public abstract Serializer newSerializer(List<String> chainOfReceivers);
+    /**
+     * Get's a new Serializer.
+     *
+     * @param chainOfReceivers the receivers to set on the serializer.
+     * @return a serializer
+     *
+     * @deprecated Use {@link #borrowSerializer()} and {@link #returnSerializer(Serializer)} instead. Will be removed in eXist-db 6.0.0
+     */
+    @Deprecated
+    public abstract Serializer newSerializer(final List<String> chainOfReceivers);
+
+    public abstract NativeValueIndex getValueIndex();
 
     /**
      * Get a node with given owner document and id from the database.

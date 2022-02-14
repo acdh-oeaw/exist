@@ -24,7 +24,6 @@ package org.exist.webdav;
 import org.apache.commons.io.input.UnsynchronizedByteArrayInputStream;
 import org.exist.EXistException;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
 import org.exist.dom.persistent.DocumentImpl;
 import org.exist.security.Permission;
@@ -35,7 +34,9 @@ import org.exist.storage.lock.Lock.LockMode;
 import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.util.*;
-import org.exist.util.io.*;
+import org.exist.util.io.CachingFilterInputStream;
+import org.exist.util.io.FilterInputStreamCache;
+import org.exist.util.io.FilterInputStreamCacheFactory;
 import org.exist.webdav.exceptions.CollectionDoesNotExistException;
 import org.exist.webdav.exceptions.CollectionExistsException;
 import org.exist.xmldb.XmldbURI;
@@ -45,12 +46,11 @@ import org.xml.sax.SAXException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Class for accessing the Collection class of the exist-db native API.
@@ -282,20 +282,18 @@ public class ExistCollection extends ExistResource {
 
         // To support LockNullResource, a 0-byte XML document can be received. Since 0-byte
         // XML documents are not supported a small file will be created.
-
-        if(mime.isXMLType() && length == 0) {
+        if (mime.isXMLType() && length == 0) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Creating dummy XML file for null resource lock '{}'", newNameUri);
             }
-
-            is = new UnsynchronizedByteArrayInputStream("<null_resource/>".getBytes(UTF_8));
+            is = new UnsynchronizedByteArrayInputStream("<null_resource/>".getBytes(StandardCharsets.UTF_8));
         }
 
         final TransactionManager txnManager = brokerPool.getTransactionManager();
 
         try (final DBBroker broker = brokerPool.get(Optional.ofNullable(subject));
-            final Txn txn = txnManager.beginTransaction();
-            final Collection collection = broker.openCollection(xmldbUri, LockMode.WRITE_LOCK)) {
+             final Txn txn = txnManager.beginTransaction();
+             final Collection collection = broker.openCollection(xmldbUri, LockMode.WRITE_LOCK)) {
 
             // Check if collection exists. not likely to happen since availability is checked
             // by ResourceFactory
@@ -305,38 +303,28 @@ public class ExistCollection extends ExistResource {
                 throw new CollectionDoesNotExistException(xmldbUri + "");
             }
 
-
-            try(final FilterInputStreamCache cache = FilterInputStreamCacheFactory.getCacheInstance(() -> (String) brokerPool.getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY), is);
-                    final InputStream cfis = new CachingFilterInputStream(cache)) {
+            if (LOG.isDebugEnabled()) {
                 if (mime.isXMLType()) {
-                    if (LOG.isDebugEnabled()) {
-                        LOG.debug("Inserting XML document '{}'", mime.getName());
-                    }
-
-                    // Stream into database
-                    cfis.mark(Integer.MAX_VALUE);
-                    final IndexInfo info = collection.validateXMLResource(txn, broker, newNameUri, new InputSource(cfis));
-                    final DocumentImpl doc = info.getDocument();
-                    doc.setMimeType(mime.getName());
-                    cfis.reset();
-                    collection.store(txn, broker, info, new InputSource(cfis));
+                    LOG.debug("Inserting XML document '{}'", mime.getName());
                 } else {
-                    if (LOG.isDebugEnabled()) {
-                        LOG.debug("Inserting BINARY document '{}'", mime.getName());
-                    }
-
-                    // Stream into database
-                    collection.addBinaryResource(txn, broker, newNameUri, cfis, mime.getName(), length);
+                    LOG.debug("Inserting BINARY document '{}'", mime.getName());
                 }
+            }
+
+            // Stream into database
+            try (final FilterInputStreamCache cache = FilterInputStreamCacheFactory.getCacheInstance(()
+                    -> (String) broker.getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY), is);
+                 final CachingFilterInputStream cfis = new CachingFilterInputStream(cache);
+                 final EXistInputSource eis = new CachingFilterInputStreamInputSource(cfis)) {
+                broker.storeDocument(txn, newNameUri, eis, mime, collection);
             }
 
             // Commit change
             txnManager.commit(txn);
 
             if (LOG.isDebugEnabled()) {
-                LOG.debug("Document created sucessfully");
+                LOG.debug("Document created successfully");
             }
-
 
         } catch (EXistException | SAXException e) {
             LOG.error(e);

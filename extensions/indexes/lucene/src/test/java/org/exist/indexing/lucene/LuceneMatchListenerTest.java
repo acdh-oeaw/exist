@@ -32,7 +32,6 @@ import org.exist.TestUtils;
 import org.exist.collections.Collection;
 import org.exist.collections.CollectionConfigurationException;
 import org.exist.collections.CollectionConfigurationManager;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
@@ -45,6 +44,8 @@ import org.exist.test.ExistEmbeddedServer;
 import org.exist.test.TestConstants;
 import org.exist.util.DatabaseConfigurationException;
 import org.exist.util.LockException;
+import org.exist.util.MimeType;
+import org.exist.util.StringInputSource;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQuery;
@@ -384,9 +385,7 @@ public class LuceneMatchListenerTest {
             final CollectionConfigurationManager mgr = pool.getConfigurationManager();
             mgr.addConfiguration(transaction, broker, root, config);
 
-            final IndexInfo info = root.validateXMLResource(transaction, broker, XmldbURI.create("test_matches.xml"), XML);
-            assertNotNull(info);
-            root.store(transaction, broker, info, data);
+            broker.storeDocument(transaction, XmldbURI.create("test_matches.xml"), new StringInputSource(data), MimeType.XML_TYPE, root);
 
             transact.commit(transaction);
         }
@@ -400,9 +399,12 @@ public class LuceneMatchListenerTest {
         final Properties props = new Properties();
         props.setProperty(OutputKeys.INDENT, indent ? "yes" : "no");
         props.setProperty(EXistOutputKeys.HIGHLIGHT_MATCHES, "elements");
-        Serializer serializer = broker.getSerializer();
-        serializer.reset();
-        serializer.setProperties(props);
-        return serializer.serialize((NodeValue) seq.itemAt(0));
+        final Serializer serializer = broker.borrowSerializer();
+        try {
+            serializer.setProperties(props);
+            return serializer.serialize((NodeValue) seq.itemAt(0));
+        } finally {
+            broker.returnSerializer(serializer);
+        }
     }
 }

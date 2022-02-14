@@ -28,7 +28,7 @@
     <parent>
         <groupId>org.exist-db</groupId>
         <artifactId>exist-parent</artifactId>
-        <version>5.3.0</version>
+        <version>6.0.1</version>
         <relativePath>../exist-parent</relativePath>
     </parent>
 
@@ -42,7 +42,7 @@
         <dependency>
             <groupId>org.openjdk.jcstress</groupId>
             <artifactId>jcstress-core</artifactId>
-            <version>0.13</version>
+            <version>0.15</version>
         </dependency>
         <dependency>
             <groupId>org.exist-db</groupId>

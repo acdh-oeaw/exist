@@ -29,7 +29,6 @@ import java.util.Optional;
 import org.exist.EXistException;
 import org.exist.TestUtils;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.dom.persistent.DocumentImpl;
 import org.exist.dom.persistent.LockedDocument;
 import org.exist.security.PermissionDeniedException;
@@ -41,6 +40,8 @@ import org.exist.test.ExistEmbeddedServer;
 import org.exist.test.TestConstants;
 import org.exist.util.DatabaseConfigurationException;
 import org.exist.util.LockException;
+import org.exist.util.MimeType;
+import org.exist.util.StringInputSource;
 import org.exist.util.io.InputStreamUtil;
 import org.exist.xmldb.DatabaseImpl;
 import org.exist.xmldb.XmldbURI;
@@ -119,9 +120,7 @@ public class MoveResourceRecoveryTest {
                 sample = InputStreamUtil.readString(is, UTF_8);
             }
 
-            final IndexInfo info = test2.validateXMLResource(transaction, broker, TestConstants.TEST_XML_URI, sample);
-            assertNotNull(info);
-            test2.store(transaction, broker, info, sample);
+            broker.storeDocument(transaction, TestConstants.TEST_XML_URI, new StringInputSource(sample), MimeType.XML_TYPE, test2);
 
             final DocumentImpl doc = test2.getDocument(broker, TestConstants.TEST_XML_URI);
             assertNotNull(doc);
@@ -135,13 +134,14 @@ public class MoveResourceRecoveryTest {
     private void read() throws EXistException, PermissionDeniedException, SAXException, IOException, LockException {
         final BrokerPool pool = existEmbeddedServer.getBrokerPool();
         try(final DBBroker broker = pool.get(Optional.of(pool.getSecurityManager().getSystemSubject()))) {
-            final Serializer serializer = broker.getSerializer();
-            serializer.reset();
+            final Serializer serializer = broker.borrowSerializer();
 
             try(final LockedDocument lockedDoc = broker.getXMLResource(XmldbURI.ROOT_COLLECTION_URI.append("test/new_test.xml"), LockMode.READ_LOCK)) {
                 assertNotNull("Document should not be null", lockedDoc);
                 final String data = serializer.serialize(lockedDoc.getDocument());
                 assertNotNull(data);
+            } finally {
+                broker.returnSerializer(serializer);
             }
 
             final TransactionManager transact = pool.getTransactionManager();
@@ -172,8 +172,7 @@ public class MoveResourceRecoveryTest {
                     sample = InputStreamUtil.readString(is, UTF_8);
                 }
 
-                final IndexInfo info = test2.validateXMLResource(transaction, broker, XmldbURI.create("new_test2.xml"), sample);
-                test2.store(transaction, broker, info, sample);
+                broker.storeDocument(transaction, XmldbURI.create("new_test2.xml"), new StringInputSource(sample), MimeType.XML_TYPE, test2);
 
                 transact.commit(transaction);
             }
@@ -197,13 +196,14 @@ public class MoveResourceRecoveryTest {
     private void readAborted() throws EXistException, PermissionDeniedException, SAXException, IOException, LockException {
         final BrokerPool pool = existEmbeddedServer.getBrokerPool();
         try(final DBBroker broker = pool.get(Optional.of(pool.getSecurityManager().getSystemSubject()))) {
-            final Serializer serializer = broker.getSerializer();
-            serializer.reset();
+            final Serializer serializer = broker.borrowSerializer();
 
             try(final LockedDocument lockedDoc = broker.getXMLResource(TestConstants.TEST_COLLECTION_URI2.append("new_test2.xml"), LockMode.READ_LOCK)) {
                 assertNotNull("Document should not be null", lockedDoc);
                 final String data = serializer.serialize(lockedDoc.getDocument());
                 assertNotNull(data);
+            } finally {
+                broker.returnSerializer(serializer);
             }
 
             final TransactionManager transact = pool.getTransactionManager();

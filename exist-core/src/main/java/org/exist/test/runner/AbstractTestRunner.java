@@ -25,6 +25,7 @@ package org.exist.test.runner;
 import com.evolvedbinary.j8fu.tuple.Tuple2;
 import org.exist.EXistException;
 import org.exist.security.PermissionDeniedException;
+import org.exist.security.SecurityManager;
 import org.exist.source.FileSource;
 import org.exist.source.Source;
 import org.exist.storage.BrokerPool;
@@ -40,6 +41,7 @@ import org.exist.xquery.value.Sequence;
 import org.junit.runner.Runner;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -47,12 +49,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Base class for XSuite test runners.
  *
  * @author Adam Retter
  */
 public abstract class AbstractTestRunner extends Runner {
+    protected static final Annotation[] EMPTY_ANNOTATIONS = new Annotation[0];
 
     protected final Path path;
     protected final boolean parallel;
@@ -62,9 +67,9 @@ public abstract class AbstractTestRunner extends Runner {
         this.parallel = parallel;
     }
 
-    protected static Sequence executeQuery(final Source query, final List<Function<XQueryContext, Tuple2<String, Object>>> externalVariableBindings) throws EXistException, PermissionDeniedException, XPathException, IOException, DatabaseConfigurationException {
-        final BrokerPool brokerPool = XSuite.ExistServer.getRunningServer().getBrokerPool();
-        try (final DBBroker broker = brokerPool.get(Optional.of(brokerPool.getSecurityManager().getSystemSubject()))) {
+    protected static Sequence executeQuery(final BrokerPool brokerPool, final Source query, final List<Function<XQueryContext, Tuple2<String, Object>>> externalVariableBindings) throws EXistException, PermissionDeniedException, XPathException, IOException, DatabaseConfigurationException {
+	final SecurityManager securityManager = requireNonNull(brokerPool.getSecurityManager(), "securityManager is null");
+        try (final DBBroker broker = brokerPool.get(Optional.of(securityManager.getSystemSubject()))) {
             final XQueryPool queryPool = brokerPool.getXQueryPool();
             CompiledXQuery compiledQuery = queryPool.borrowCompiledXQuery(broker, query);
 
@@ -98,7 +103,7 @@ public abstract class AbstractTestRunner extends Runner {
 
                 // compile or update the context
                 if (compiledQuery == null) {
-                    compiledQuery = xqueryService.compile(broker, context, query);
+                    compiledQuery = xqueryService.compile(context, query);
                 } else {
                     compiledQuery.getContext().updateContext(context);
                     context.getWatchDog().reset();
@@ -110,5 +115,18 @@ public abstract class AbstractTestRunner extends Runner {
                 queryPool.returnCompiledXQuery(query, compiledQuery);
             }
         }
+    }
+
+    protected static String checkDescription(Object source,  String description) {
+        if (description == null) {
+            throw new IllegalArgumentException(source + " description is null");
+        }
+        if (description.isEmpty()) {
+            throw new IllegalArgumentException(source + " description is empty");
+        }
+        if (description.startsWith("(")) {
+            throw new IllegalArgumentException(source + " description '" + description + "' starts with '('");
+        }
+        return description;
     }
 }

@@ -21,126 +21,75 @@
  */
 package org.exist.util;
 
-import org.apache.commons.pool.PoolableObjectFactory;
-import org.apache.commons.pool.impl.StackObjectPool;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.exist.Namespaces;
+import net.jcip.annotations.ThreadSafe;
+import org.apache.commons.pool2.PooledObjectFactory;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.exist.storage.BrokerPool;
 import org.exist.storage.BrokerPoolService;
-import org.exist.storage.BrokerPoolServiceException;
-import org.exist.validation.GrammarPool;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
+import org.exist.storage.DBBroker;
 import org.xml.sax.XMLReader;
-import org.xml.sax.ext.DefaultHandler2;
-
-import javax.xml.parsers.ParserConfigurationException;
-import java.util.Map;
 
 /**
- * Maintains a pool of XMLReader objects. The pool is available through
- * {@link BrokerPool#getParserPool()}.
- * 
- * @author wolf
+ * Maintains a pool of XMLReader objects.
+ *
+ * The pool is available through {@link BrokerPool#getParserPool()}.
  */
-public class XMLReaderPool extends StackObjectPool<XMLReader> implements BrokerPoolService {
-
-    private final static Logger LOG = LogManager.getLogger(XMLReaderPool.class);
-
-    private final static DefaultHandler2 DUMMY_HANDLER = new DefaultHandler2();
-
-    private Configuration configuration = null;
+@ThreadSafe
+public class XMLReaderPool extends GenericObjectPool<XMLReader> implements BrokerPoolService {
 
     /**
      * Constructs an XML Reader Pool.
      *
-     * @param factory the object factory
-     * @param maxIdle the max idle time for a reader
-     * @param initIdleCapacity the initial capacity
+     * @param factory the XMLReader object factory
+     * @param maxIdle the maximum number of idle instances in the pool
+     * @param initSize initial size of the pool (this specifies the size of the container, it does not cause the pool to be pre-populated.) (unused)
      */
-    public XMLReaderPool(final PoolableObjectFactory<XMLReader> factory, final int maxIdle, final int initIdleCapacity) {
-        super(factory, maxIdle, initIdleCapacity);
+    public XMLReaderPool(final PooledObjectFactory<XMLReader> factory, final int maxIdle, @Deprecated final int initSize) {
+        super(factory, toConfig(maxIdle));
+    }
+
+    private static GenericObjectPoolConfig toConfig(final int maxIdle) {
+        final GenericObjectPoolConfig<Object> config = new GenericObjectPoolConfig<>();
+        config.setBlockWhenExhausted(false);
+        config.setLifo(true);
+        config.setMaxIdle(maxIdle);
+        config.setMaxTotal(-1);            // TODO(AR) is this the best way to allow us to temporarily exceed the size of the pool?
+        config.setJmxNameBase("org.exist.management.exist:type=XMLReaderPool,name=");
+        return config;
     }
 
     @Override
-    public void configure(final Configuration configuration) throws BrokerPoolServiceException {
-        this.configuration = configuration;
+    public void configure(final Configuration configuration) {
+        //nothing to configure
     }
 
-    public synchronized XMLReader borrowXMLReader() {
+    public XMLReader borrowXMLReader() {
         try {
-            final XMLReader reader = super.borrowObject();
-            setParserConfigFeatures(reader);
-            return reader;
+            return super.borrowObject();
         } catch (final Exception e) {
-            throw new IllegalStateException("error while returning XMLReader: " + e.getMessage(), e );
-        }
-    }
-
-    /**
-     * Sets any features for the parser which were defined in conf.xml
-     */
-    private void setParserConfigFeatures(final XMLReader xmlReader) throws ParserConfigurationException, SAXNotRecognizedException, SAXNotSupportedException {
-        final Map<String, Boolean> parserFeatures = (Map<String, Boolean>)configuration.getProperty(XmlParser.XML_PARSER_FEATURES_PROPERTY);
-        if(parserFeatures != null) {
-            for(final Map.Entry<String, Boolean> feature : parserFeatures.entrySet()) {
-                xmlReader.setFeature(feature.getKey(), feature.getValue());
-            }
+            throw new IllegalStateException("Error while borrowing: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public synchronized XMLReader borrowObject() throws Exception {
+    public XMLReader borrowObject() throws Exception {
         return borrowXMLReader();
     }
-    
-   
-    public synchronized void returnXMLReader(XMLReader reader) {
-        if (reader == null) {
-            return;
-        }
-        
-        try {            
-            reader.setContentHandler(DUMMY_HANDLER);
-            reader.setErrorHandler(DUMMY_HANDLER);
-            reader.setProperty(Namespaces.SAX_LEXICAL_HANDLER, DUMMY_HANDLER);
-            
-            // DIZZZ; workaround Xerces bug. Cached DTDs cause for problems during validation parsing.
-            final GrammarPool grammarPool =
-               (GrammarPool) getReaderProperty(reader,
-                                    XMLReaderObjectFactory.APACHE_PROPERTIES_INTERNAL_GRAMMARPOOL);
-            if(grammarPool!=null){
-                grammarPool.clearDTDs();
-            }
-            
+
+    public void returnXMLReader(final XMLReader reader) {
+        try {
             super.returnObject(reader);
-            
+
         } catch (final Exception e) {
-            throw new IllegalStateException("error while returning XMLReader: " + e.getMessage(), e);
+            throw new IllegalStateException("Error while returning: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public synchronized void returnObject(XMLReader obj) throws Exception {
+    public void returnObject(final XMLReader obj) {
         returnXMLReader(obj);
-    }   
-
-    private Object getReaderProperty(XMLReader xmlReader, String propertyName){
-
-        Object object = null;
-        try {
-            object=xmlReader.getProperty(propertyName);
-
-        } catch (final SAXNotRecognizedException ex) {
-            LOG.error("SAXNotRecognizedException: {}", ex.getMessage());
-
-        } catch (final SAXNotSupportedException ex) {
-            LOG.error("SAXNotSupportedException:{}", ex.getMessage());
-        }
-        return object;
     }
-
 
     // just used for config properties
     public interface XmlParser {
@@ -148,5 +97,9 @@ public class XMLReaderPool extends StackObjectPool<XMLReader> implements BrokerP
         String XML_PARSER_FEATURES_ELEMENT = "features";
         String XML_PARSER_FEATURES_PROPERTY = "parser.xml-parser.features";
     }
-    
+
+    @Override
+    public void stopSystem(final DBBroker systemBroker) {
+        close();
+    }
 }

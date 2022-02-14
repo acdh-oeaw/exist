@@ -24,9 +24,7 @@ package org.exist.storage;
 import org.exist.EXistException;
 import org.exist.collections.Collection;
 import org.exist.collections.CollectionConfigurationException;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
-import org.exist.dom.persistent.DocumentImpl;
 import org.exist.dom.persistent.LockedDocument;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.lock.Lock.LockMode;
@@ -35,9 +33,7 @@ import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.test.ExistEmbeddedServer;
 import org.exist.test.TestConstants;
-import org.exist.util.DatabaseConfigurationException;
-import org.exist.util.FileUtils;
-import org.exist.util.LockException;
+import org.exist.util.*;
 import org.exist.xmldb.XmldbURI;
 import org.exist.TestUtils;
 
@@ -108,10 +104,8 @@ public class LargeValuesTest {
 
             final Path file = createDocument();
             try(final Txn transaction = transact.beginTransaction()) {
-                final IndexInfo info = root.validateXMLResource(transaction, broker, XmldbURI.create("test.xml"),
-                        new InputSource(file.toUri().toASCIIString()));
-                assertNotNull(info);
-                root.store(transaction, broker, info, new InputSource(file.toUri().toASCIIString()));
+                broker.storeDocument(transaction, XmldbURI.create("test.xml"), new InputSource(file.toUri().toASCIIString()), MimeType.XML_TYPE, root);
+
                 broker.saveCollection(transaction, root);
 
                 transact.commit(transaction);
@@ -138,12 +132,12 @@ public class LargeValuesTest {
             try(final LockedDocument lockedDoc = root.getDocumentWithLock(broker, XmldbURI.create("test.xml"), LockMode.READ_LOCK)) {
                 assertNotNull(lockedDoc);
 
-                final Serializer serializer = broker.getSerializer();
-                serializer.reset();
-
                 final Path tempFile = Files.createTempFile("eXist", ".xml");
+                final Serializer serializer = broker.borrowSerializer();
                 try (final Writer writer = Files.newBufferedWriter(tempFile, UTF_8)) {
                     serializer.serialize(lockedDoc.getDocument(), writer);
+                } finally {
+                    broker.returnSerializer(serializer);
                 }
 
                 // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme

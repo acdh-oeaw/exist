@@ -29,7 +29,6 @@ import java.util.Optional;
 
 import org.exist.EXistException;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.dom.persistent.BinaryDocument;
 import org.exist.dom.persistent.LockedDocument;
 import org.exist.security.PermissionDeniedException;
@@ -117,7 +116,8 @@ public class RecoveryTest {
                 test2 = broker.getOrCreateCollection(transaction, TestConstants.TEST_COLLECTION_URI2);
                 broker.saveCollection(transaction, test2);
 
-                binaryDocument = test2.addBinaryResource(transaction, broker, TestConstants.TEST_BINARY_URI, "Some text data".getBytes(), null);
+                broker.storeDocument(transaction, TestConstants.TEST_BINARY_URI, new StringInputSource("Some text data".getBytes(UTF_8)), MimeType.BINARY_TYPE, test2);
+                binaryDocument = (BinaryDocument) test2.getDocument(broker, TestConstants.TEST_BINARY_URI);
                 assertNotNull(binaryDocument);
 
                 // store some documents. Will be replaced below
@@ -126,9 +126,7 @@ public class RecoveryTest {
                     try (final InputStream is = SAMPLES.getShakespeareSample(sampleName)) {
                         sample = InputStreamUtil.readString(is, UTF_8);
                     }
-                    final IndexInfo info = test2.validateXMLResource(transaction, broker, XmldbURI.create(sampleName), sample);
-                    assertNotNull(info);
-                    test2.store(transaction, broker, info, sample);
+                    broker.storeDocument(transaction, XmldbURI.create(sampleName), new StringInputSource(sample), MimeType.XML_TYPE, test2);
                 }
 
                 // replace some documents
@@ -137,16 +135,12 @@ public class RecoveryTest {
                     try (final InputStream is = SAMPLES.getShakespeareSample(sampleName)) {
                         sample = InputStreamUtil.readString(is, UTF_8);
                     }
-                    final IndexInfo info = test2.validateXMLResource(transaction, broker, XmldbURI.create(sampleName), sample);
-                    assertNotNull(info);
-                    test2.store(transaction, broker, info, sample);
+                    broker.storeDocument(transaction, XmldbURI.create(sampleName), new StringInputSource(sample), MimeType.XML_TYPE, test2);
                 }
 
-                final IndexInfo info = test2.validateXMLResource(transaction, broker, XmldbURI.create("test_string.xml"), TEST_XML);
-                assertNotNull(info);
-                //TODO : unlock the collection here ?
+                broker.storeDocument(transaction, XmldbURI.create("test_string.xml"), new StringInputSource(TEST_XML), MimeType.XML_TYPE, test2);
 
-                test2.store(transaction, broker, info, TEST_XML);
+                //TODO : unlock the collection here ?
 
                 // remove last document
                 final String lastSampleName = SAMPLES.getShakespeareXmlSampleNames()[SAMPLES.getShakespeareXmlSampleNames().length - 1];
@@ -166,34 +160,37 @@ public class RecoveryTest {
 
     private void verify(final BrokerPool pool) throws EXistException, PermissionDeniedException, SAXException, XPathException, IOException, BTreeException, LockException {
         try(final DBBroker broker = pool.get(Optional.of(pool.getSecurityManager().getSystemSubject()))) {
-            final Serializer serializer = broker.getSerializer();
-            serializer.reset();
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                try (final LockedDocument lockedDoc = broker.getXMLResource(XmldbURI.ROOT_COLLECTION_URI.append("test/test2/hamlet.xml"), LockMode.READ_LOCK)) {
 
-            try(final LockedDocument lockedDoc = broker.getXMLResource(XmldbURI.ROOT_COLLECTION_URI.append("test/test2/hamlet.xml"), LockMode.READ_LOCK)) {
+                    assertNotNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/hamlet.xml' should not be null", lockedDoc);
+                    final String data = serializer.serialize(lockedDoc.getDocument());
+                    assertNotNull(data);
+                }
 
-                assertNotNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/hamlet.xml' should not be null", lockedDoc);
-                final String data = serializer.serialize(lockedDoc.getDocument());
-                assertNotNull(data);
-            }
+                try (final LockedDocument lockedDoc = broker.getXMLResource(XmldbURI.ROOT_COLLECTION_URI.append("test/test2/test_string.xml"), LockMode.READ_LOCK)) {
+                    assertNotNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/test_string.xml' should not be null", lockedDoc);
+                    final String data = serializer.serialize(lockedDoc.getDocument());
+                    assertNotNull(data);
+                }
 
-            try(final LockedDocument lockedDoc = broker.getXMLResource(XmldbURI.ROOT_COLLECTION_URI.append("test/test2/test_string.xml"), LockMode.READ_LOCK)) {
-                assertNotNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/test_string.xml' should not be null", lockedDoc);
-                final String data = serializer.serialize(lockedDoc.getDocument());
-                assertNotNull(data);
-            }
+                final String lastSampleName = SAMPLES.getShakespeareXmlSampleNames()[SAMPLES.getShakespeareXmlSampleNames().length - 1];
+                try (final LockedDocument lockedDoc = broker.getXMLResource(TestConstants.TEST_COLLECTION_URI2.append(lastSampleName), LockMode.READ_LOCK)) {
+                    assertNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/'" + lastSampleName + " should not exist anymore", lockedDoc);
+                }
 
-            final String lastSampleName = SAMPLES.getShakespeareXmlSampleNames()[SAMPLES.getShakespeareXmlSampleNames().length - 1];
-            try(final LockedDocument lockedDoc = broker.getXMLResource(TestConstants.TEST_COLLECTION_URI2.append(lastSampleName), LockMode.READ_LOCK)) {
-                assertNull("Document '" + XmldbURI.ROOT_COLLECTION + "/test/test2/'" + lastSampleName + " should not exist anymore", lockedDoc);
-            }
-            
-            final XQuery xquery = pool.getXQueryService();
-            assertNotNull(xquery);
-            final Sequence seq = xquery.execute(broker, "//SPEECH[contains(LINE, 'king')]", null);
-            assertNotNull(seq);
-            for (final SequenceIterator i = seq.iterate(); i.hasNext(); ) {
-                final Item next = i.nextItem();
-                final String value = serializer.serialize((NodeValue) next);
+                final XQuery xquery = pool.getXQueryService();
+                assertNotNull(xquery);
+                final Sequence seq = xquery.execute(broker, "//SPEECH[contains(LINE, 'king')]", null);
+                assertNotNull(seq);
+                for (final SequenceIterator i = seq.iterate(); i.hasNext(); ) {
+                    final Item next = i.nextItem();
+                    final String value = serializer.serialize((NodeValue) next);
+                }
+
+            } finally {
+                broker.returnSerializer(serializer);
             }
             
             try(final LockedDocument lockedBinDoc = broker.getXMLResource(TestConstants.TEST_COLLECTION_URI2.append(TestConstants.TEST_BINARY_URI), LockMode.READ_LOCK)) {

@@ -34,7 +34,6 @@ import org.exist.backup.Backup;
 import org.exist.collections.Collection;
 import org.exist.collections.CollectionConfigurationException;
 import org.exist.collections.CollectionConfigurationManager;
-import org.exist.collections.IndexInfo;
 import org.exist.dom.memtree.NodeImpl;
 import org.exist.numbering.NodeId;
 import org.exist.protocolhandler.embedded.EmbeddedInputStream;
@@ -73,7 +72,6 @@ import org.exist.storage.txn.Txn;
 import org.exist.util.*;
 import org.exist.util.crypto.digest.DigestType;
 import org.exist.util.crypto.digest.MessageDigest;
-import org.apache.commons.io.input.UnsynchronizedByteArrayInputStream;
 import org.exist.util.io.TemporaryFileManager;
 import org.exist.util.serializer.SAXSerializer;
 import org.exist.util.serializer.SerializerPool;
@@ -351,7 +349,7 @@ public class RpcConnection implements RpcAPI {
             context.setStaticallyKnownDocuments(new XmldbURI[]{context.getBaseURI().toXmldbURI()});
         }
         if (compiled == null) {
-            compiled = xquery.compile(broker, context, source);
+            compiled = xquery.compile(context, source);
         }
         return compiled;
     }
@@ -665,12 +663,12 @@ public class RpcConnection implements RpcAPI {
     }
 
     private void serialize(final DBBroker broker, final Properties properties, final ConsumerE<Serializer, SAXException> toSaxFunction, final Writer writer) throws SAXException, IOException {
-        final Serializer serializer = broker.getSerializer();
-        serializer.setUser(user);
-        serializer.setProperties(properties);
+        final Serializer serializer = broker.borrowSerializer();
 
         SAXSerializer saxSerializer = null;
         try {
+            serializer.setUser(user);
+            serializer.setProperties(properties);
             saxSerializer = (SAXSerializer) SerializerPool.getInstance().borrowObject(SAXSerializer.class);
 
             saxSerializer.setOutput(writer, properties);
@@ -683,6 +681,7 @@ public class RpcConnection implements RpcAPI {
             if (saxSerializer != null) {
                 SerializerPool.getInstance().returnObject(saxSerializer);
             }
+            broker.returnSerializer(serializer);
         }
     }
 
@@ -1332,7 +1331,7 @@ public class RpcConnection implements RpcAPI {
     }
 
     private boolean parse(final byte[] xml, final XmldbURI docUri,
-                          final int overwrite, final Date created, final Date modified) throws EXistException, PermissionDeniedException {
+                          final int overwrite, @Nullable final Date created, @Nullable final Date modified) throws EXistException, PermissionDeniedException {
 
         return this.<Boolean>writeCollection(docUri.removeLastSegment()).apply((collection, broker, transaction) -> {
 
@@ -1348,33 +1347,19 @@ public class RpcConnection implements RpcAPI {
                     }
                 }
 
-            try (final InputStream is = new UnsynchronizedByteArrayInputStream(xml)) {
+                final InputSource source = new StringInputSource(xml);
 
-                    final InputSource source = new InputSource(is);
+                final long startTime = System.currentTimeMillis();
 
-                    final long startTime = System.currentTimeMillis();
+                final MimeType mime = MimeTable.getInstance().getContentTypeFor(docUri.lastSegment());
+                broker.storeDocument(transaction, docUri.lastSegment(), source, mime, created, modified, null, null, null, collection);
 
-                    final IndexInfo info = collection.validateXMLResource(transaction, broker, docUri.lastSegment(), source);
-                    final MimeType mime = MimeTable.getInstance().getContentTypeFor(docUri.lastSegment());
-                    if (mime != null && mime.isXMLType()) {
-                        info.getDocument().setMimeType(mime.getName());
-                    }
-                    if (created != null) {
-                        info.getDocument().setCreated(created.getTime());
-                    }
-                    if (modified != null) {
-                        info.getDocument().setLastModified(modified.getTime());
-                    }
-
-                    collection.store(transaction, broker, info, source);
-
-                    // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
-                    collection.close();
-                    if(LOG.isDebugEnabled()) {
-                        LOG.debug("parsing {} took {}ms.", docUri, System.currentTimeMillis() - startTime);
-                    }
-                    return true;
+                // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
+                collection.close();
+                if(LOG.isDebugEnabled()) {
+                    LOG.debug("parsing {} took {}ms.", docUri, System.currentTimeMillis() - startTime);
                 }
+                return true;
             }
         });
     }
@@ -1488,41 +1473,16 @@ public class RpcConnection implements RpcAPI {
                     }
 
                     sourceSupplier = () -> new FileInputSource(path);
-            }
+                }
 
-            // parse the source
-            try (final FileInputSource source = sourceSupplier.get()) {
-                final MimeType mime = Optional.ofNullable(MimeTable.getInstance().getContentType(mimeType)).orElse(MimeType.BINARY_TYPE);
-                final boolean treatAsXML = (isXML != null && isXML) || (isXML == null && mime.isXMLType());
+                // parse the source
+                try (final FileInputSource source = sourceSupplier.get()) {
+                    final MimeType mime = Optional.ofNullable(MimeTable.getInstance().getContentType(mimeType)).orElse(MimeType.BINARY_TYPE);
 
-                    if (treatAsXML) {
-                        final IndexInfo info = collection.validateXMLResource(transaction, broker, docUri.lastSegment(), source);
-                        if (created != null) {
-                            info.getDocument().setCreated(created.getTime());
-                        }
-                        if (modified != null) {
-                            info.getDocument().setLastModified(modified.getTime());
-                        }
-                        collection.store(transaction, broker, info, source);
+                    broker.storeDocument(transaction, docUri.lastSegment(), source, mime, created, modified, null, null, null, collection);
 
-                        // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
-                        collection.close();
-
-                    } else {
-                        try (final InputStream is = source.getByteStream()) {
-                            final DocumentImpl doc = collection.addBinaryResource(transaction, broker, docUri.lastSegment(), is, mime.getName(), source.getByteStreamLength());
-
-                            // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
-                            collection.close();
-
-                            if (created != null) {
-                                doc.setCreated(created.getTime());
-                            }
-                            if (modified != null) {
-                                doc.setLastModified(modified.getTime());
-                            }
-                        }
-                    }
+                    // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
+                    collection.close();
 
                     return true;
                 }
@@ -1569,25 +1529,12 @@ public class RpcConnection implements RpcAPI {
                     LOG.debug("Storing binary resource to collection {}", collection.getURI());
                 }
 
-                final DocumentImpl doc = collection.addBinaryResource(transaction, broker, docUri.lastSegment(), data, mimeType);
-                if(doc != null) {
-                    if (created != null) {
-                        doc.setCreated(created.getTime());
-                    }
-                    if (modified != null) {
-                        doc.setLastModified(modified.getTime());
-                    }
+                broker.storeDocument(transaction, docUri.lastSegment(), new StringInputSource(data), MimeTable.getInstance().getContentType(mimeType), created, modified, null, null, null, collection);
 
-                    // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
-                    collection.close();
+                // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
+                collection.close();
 
-                    return true;
-                } else {
-                    // NOTE: early release of Collection lock inline with Asymmetrical Locking scheme
-                    collection.close();
-
-                    return false;
-                }
+                return true;
             }
         });
     }
@@ -2383,45 +2330,47 @@ public class RpcConnection implements RpcAPI {
             qr.touch();
 
             final SAXSerializer handler = (SAXSerializer) SerializerPool.getInstance().borrowObject(SAXSerializer.class);
-            final StringWriter writer = new StringWriter();
-            handler.setOutput(writer, toProperties(parameters));
+            try (final StringWriter writer = new StringWriter()) {
+                handler.setOutput(writer, toProperties(parameters));
 
 //			serialize results
-            handler.startDocument();
-            handler.startPrefixMapping("exist", Namespaces.EXIST_NS);
-            handler.startPrefixMapping("xs", Namespaces.SCHEMA_NS);
-            final AttributesImpl attribs = new AttributesImpl();
-            attribs.addAttribute("", "hitCount", "hitCount", "CDATA", Integer.toString(qr.result.getItemCount()));
-            handler.startElement(Namespaces.EXIST_NS, "result", "exist:result", attribs);
-            Item current;
-            char[] value;
-            try {
-                for (final SequenceIterator i = qr.result.iterate(); i.hasNext(); ) {
-                    current = i.nextItem();
+                handler.startDocument();
+                handler.startPrefixMapping("exist", Namespaces.EXIST_NS);
+                handler.startPrefixMapping("xs", Namespaces.SCHEMA_NS);
+                final AttributesImpl attribs = new AttributesImpl();
+                attribs.addAttribute("", "hitCount", "hitCount", "CDATA", Integer.toString(qr.result.getItemCount()));
+                handler.startElement(Namespaces.EXIST_NS, "result", "exist:result", attribs);
+                Item current;
+                char[] value;
+                try {
+                    for (final SequenceIterator i = qr.result.iterate(); i.hasNext(); ) {
+                        current = i.nextItem();
 
-                    if (Type.subTypeOf(current.getType(), Type.NODE)) {
-                        current.toSAX(broker, handler, null);
-                    } else {
+                        if (Type.subTypeOf(current.getType(), Type.NODE)) {
+                            current.toSAX(broker, handler, null);
+                        } else {
 
-                        final AttributesImpl typeAttr = new AttributesImpl();
-                        typeAttr.addAttribute("", "type", "type", "CDATA", Type.getTypeName(current.getType()));
-                        handler.startElement(Namespaces.EXIST_NS, "value", "exist:value", typeAttr);
+                            final AttributesImpl typeAttr = new AttributesImpl();
+                            typeAttr.addAttribute("", "type", "type", "CDATA", Type.getTypeName(current.getType()));
+                            handler.startElement(Namespaces.EXIST_NS, "value", "exist:value", typeAttr);
 
-                        value = current.toString().toCharArray();
-                        handler.characters(value, 0, value.length);
+                            value = current.toString().toCharArray();
+                            handler.characters(value, 0, value.length);
 
-                        handler.endElement(Namespaces.EXIST_NS, "value", "exist:value");
+                            handler.endElement(Namespaces.EXIST_NS, "value", "exist:value");
+                        }
                     }
+                } catch (final XPathException e) {
+                    throw new EXistException(e);
                 }
-            } catch (final XPathException e) {
-                throw new EXistException(e);
+                handler.endElement(Namespaces.EXIST_NS, "result", "exist:result");
+                handler.endPrefixMapping("xs");
+                handler.endPrefixMapping("exist");
+                handler.endDocument();
+                return writer.toString();
+            } finally {
+                SerializerPool.getInstance().returnObject(handler);
             }
-            handler.endElement(Namespaces.EXIST_NS, "result", "exist:result");
-            handler.endPrefixMapping("xs");
-            handler.endPrefixMapping("exist");
-            handler.endDocument();
-            SerializerPool.getInstance().returnObject(handler);
-            return writer.toString();
         });
     }
 
@@ -2439,72 +2388,75 @@ public class RpcConnection implements RpcAPI {
                 parameters.put(entry.getKey().toString(), entry.getValue().toString());
             }
             final SAXSerializer handler = (SAXSerializer) SerializerPool.getInstance().borrowObject(SAXSerializer.class);
+            try {
 
-            final Map<String, Object> result = new HashMap<>();
-            final TemporaryFileManager temporaryFileManager = TemporaryFileManager.getInstance();
-            final Path tempFile = temporaryFileManager.getTemporaryFile();
+                final Map<String, Object> result = new HashMap<>();
+                final TemporaryFileManager temporaryFileManager = TemporaryFileManager.getInstance();
+                final Path tempFile = temporaryFileManager.getTemporaryFile();
 
-            if (compression && LOG.isDebugEnabled()) {
-                LOG.debug("retrieveAllFirstChunk with compression");
-            }
-
-            try (final OutputStream os = compression
-                    ? new DeflaterOutputStream(new BufferedOutputStream(Files.newOutputStream(tempFile)))
-                    : new BufferedOutputStream(Files.newOutputStream(tempFile));
-                 final Writer writer = new OutputStreamWriter(os, getEncoding(parameters))) {
-                handler.setOutput(writer, toProperties(parameters));
-
-                // serialize results
-                handler.startDocument();
-                handler.startPrefixMapping("exist", Namespaces.EXIST_NS);
-                final AttributesImpl attribs = new AttributesImpl();
-                attribs.addAttribute(
-                        "",
-                        "hitCount",
-                        "hitCount",
-                        "CDATA",
-                        Integer.toString(qr.result.getItemCount()));
-                handler.startElement(
-                        Namespaces.EXIST_NS,
-                        "result",
-                        "exist:result",
-                        attribs);
-                Item current;
-                char[] value;
-                try {
-                    for (final SequenceIterator i = qr.result.iterate(); i.hasNext(); ) {
-                        current = i.nextItem();
-                        if (Type.subTypeOf(current.getType(), Type.NODE)) {
-                            ((NodeValue) current).toSAX(broker, handler, null);
-                        } else {
-                            value = current.toString().toCharArray();
-                            handler.characters(value, 0, value.length);
-                        }
-                    }
-                } catch (final XPathException e) {
-                    throw new EXistException(e);
+                if (compression && LOG.isDebugEnabled()) {
+                    LOG.debug("retrieveAllFirstChunk with compression");
                 }
-                handler.endElement(Namespaces.EXIST_NS, "result", "exist:result");
-                handler.endPrefixMapping("exist");
-                handler.endDocument();
+
+                try (final OutputStream os = compression
+                        ? new DeflaterOutputStream(new BufferedOutputStream(Files.newOutputStream(tempFile)))
+                        : new BufferedOutputStream(Files.newOutputStream(tempFile));
+                     final Writer writer = new OutputStreamWriter(os, getEncoding(parameters))) {
+                    handler.setOutput(writer, toProperties(parameters));
+
+                    // serialize results
+                    handler.startDocument();
+                    handler.startPrefixMapping("exist", Namespaces.EXIST_NS);
+                    final AttributesImpl attribs = new AttributesImpl();
+                    attribs.addAttribute(
+                            "",
+                            "hitCount",
+                            "hitCount",
+                            "CDATA",
+                            Integer.toString(qr.result.getItemCount()));
+                    handler.startElement(
+                            Namespaces.EXIST_NS,
+                            "result",
+                            "exist:result",
+                            attribs);
+                    Item current;
+                    char[] value;
+                    try {
+                        for (final SequenceIterator i = qr.result.iterate(); i.hasNext(); ) {
+                            current = i.nextItem();
+                            if (Type.subTypeOf(current.getType(), Type.NODE)) {
+                                ((NodeValue) current).toSAX(broker, handler, null);
+                            } else {
+                                value = current.toString().toCharArray();
+                                handler.characters(value, 0, value.length);
+                            }
+                        }
+                    } catch (final XPathException e) {
+                        throw new EXistException(e);
+                    }
+                    handler.endElement(Namespaces.EXIST_NS, "result", "exist:result");
+                    handler.endPrefixMapping("exist");
+                    handler.endDocument();
+                }
+
+
+                final byte[] firstChunk = getChunk(tempFile, 0);
+                result.put("data", firstChunk);
+                int offset = 0;
+                if (Files.size(tempFile) > MAX_DOWNLOAD_CHUNK_SIZE) {
+                    offset = firstChunk.length;
+
+                    final int handle = factory.resultSets.add(new SerializedResult(tempFile));
+                    result.put("handle", Integer.toString(handle));
+                    result.put("supports-long-offset", Boolean.TRUE);
+                } else {
+                    temporaryFileManager.returnTemporaryFile(tempFile);
+                }
+                result.put("offset", offset);
+                return result;
+            } finally {
                 SerializerPool.getInstance().returnObject(handler);
             }
-
-
-            final byte[] firstChunk = getChunk(tempFile, 0);
-            result.put("data", firstChunk);
-            int offset = 0;
-            if (Files.size(tempFile) > MAX_DOWNLOAD_CHUNK_SIZE) {
-                offset = firstChunk.length;
-
-                final int handle = factory.resultSets.add(new SerializedResult(tempFile));
-                result.put("handle", Integer.toString(handle));
-                result.put("supports-long-offset", Boolean.TRUE);
-            } else {
-                temporaryFileManager.returnTemporaryFile(tempFile);
-            }
-            result.put("offset", offset);
-            return result;
         });
     }
 

@@ -22,6 +22,11 @@
 package org.exist.storage;
 
 import com.evolvedbinary.j8fu.function.FunctionE;
+import org.apache.commons.pool2.BasePooledObjectFactory;
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.exist.collections.*;
@@ -59,6 +64,7 @@ import org.exist.storage.lock.Lock.LockMode;
 import org.exist.storage.lock.Lock.LockType;
 import org.exist.storage.serializers.NativeSerializer;
 import org.exist.storage.serializers.Serializer;
+import org.exist.storage.serializers.XmlSerializerPool;
 import org.exist.storage.sync.Sync;
 import org.exist.storage.txn.TransactionException;
 import org.exist.storage.txn.TransactionManager;
@@ -93,6 +99,9 @@ import java.util.regex.Pattern;
 
 import org.exist.storage.dom.INodeIterator;
 import com.evolvedbinary.j8fu.tuple.Tuple2;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.exist.security.Permission.DEFAULT_TEMPORARY_COLLECTION_PERM;
@@ -164,7 +173,7 @@ public class NativeBroker extends DBBroker {
 
     private int defaultIndexDepth;
 
-    private final Serializer xmlSerializer;
+    private final XmlSerializerPool xmlSerializerPool;
 
     /** used to count the nodes inserted after the last memory check */
     private int nodesCount = 0;
@@ -213,7 +222,7 @@ public class NativeBroker extends DBBroker {
         }
 
         this.indexConfiguration = (IndexSpec) config.getProperty(Indexer.PROPERTY_INDEXER_CONFIG);
-        this.xmlSerializer = new NativeSerializer(this, config);
+        this.xmlSerializerPool = new XmlSerializerPool(this, config, 5);
 
         try {
             pushSubject(pool.getSecurityManager().getSystemSubject());
@@ -513,17 +522,29 @@ public class NativeBroker extends DBBroker {
     }
 
     @Override
-    public Serializer getSerializer() {
-        xmlSerializer.reset();
-        return xmlSerializer;
+    public Serializer borrowSerializer() {
+        return xmlSerializerPool.borrowObject();
     }
 
     @Override
+    public void returnSerializer(final Serializer serializer) {
+        xmlSerializerPool.returnObject(serializer);
+    }
+
+    @Override
+    @Deprecated
+    public Serializer getSerializer() {
+        return newSerializer();
+    }
+
+    @Override
+    @Deprecated
     public Serializer newSerializer() {
         return new NativeSerializer(this, getConfiguration());
     }
 
     @Override
+    @Deprecated
     public Serializer newSerializer(final List<String> chainOfReceivers) {
         return new NativeSerializer(this, getConfiguration(), chainOfReceivers);
     }
@@ -613,6 +634,7 @@ public class NativeBroker extends DBBroker {
      *
      * @param transaction The current transaction
      * @param path The Collection's URI
+     * @param creationAttributes the attributes to use if the collection needs to be created, the first item is a Permission (or null for default), the second item is a Creation Date.
      *
      * @return A tuple whose first boolean value is set to true if the
      * collection was created, or false if the collection already existed. The
@@ -2109,6 +2131,26 @@ public class NativeBroker extends DBBroker {
         }
 
         return getResource(uri, Permission.READ);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final InputSource source, final @Nullable MimeType mimeType, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, source, mimeType);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final InputSource source, final @Nullable MimeType mimeType, final @Nullable Date createdDate, final @Nullable Date lastModifiedDate, final @Nullable Permission permission, final @Nullable DocumentType documentType, final @Nullable XMLReader xmlReader, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, source, mimeType, createdDate, lastModifiedDate, permission, documentType, xmlReader);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final Node node, final @Nullable MimeType mimeType, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, node, mimeType);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final Node node, final @Nullable MimeType mimeType, final @Nullable Date createdDate, final @Nullable Date lastModifiedDate, final @Nullable Permission permission, final @Nullable DocumentType documentType, final @Nullable XMLReader xmlReader, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, node, mimeType, createdDate, lastModifiedDate, permission, documentType, xmlReader);
     }
 
     /**
@@ -3740,6 +3782,8 @@ public class NativeBroker extends DBBroker {
             notifyClose();
         } catch(final Exception e) {
             LOG.error(e.getMessage(), e);
+        } finally {
+            xmlSerializerPool.close();
         }
     }
 

@@ -23,7 +23,6 @@ package org.exist.xquery;
 
 import org.exist.EXistException;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
 import org.exist.dom.persistent.DocumentImpl;
 import org.exist.dom.persistent.LockedDocument;
@@ -40,6 +39,8 @@ import org.exist.test.ExistEmbeddedServer;
 import org.exist.test.TestConstants;
 import org.exist.util.DatabaseConfigurationException;
 import org.exist.util.LockException;
+import org.exist.util.MimeType;
+import org.exist.util.StringInputSource;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.value.Sequence;
 import org.exist.util.serializer.SAXSerializer;
@@ -47,18 +48,14 @@ import org.exist.util.serializer.SerializerPool;
 
 import org.junit.After;
 import org.junit.Test;
-import org.xml.sax.InputSource;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.Optional;
 import java.util.Properties;
 import javax.xml.transform.OutputKeys;
 
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -132,9 +129,7 @@ public class ConstructedNodesRecoveryTest {
             broker.saveCollection(transaction, root);
 
             //store test document
-            final IndexInfo info = root.validateXMLResource(transaction, broker, XmldbURI.create(documentName), testDocument);
-            assertNotNull(info);
-            root.store(transaction, broker, info, new InputSource(new StringReader(testDocument)));
+            broker.storeDocument(transaction, XmldbURI.create(documentName), new StringInputSource(testDocument), MimeType.XML_TYPE, root);
 
             //commit the transaction
             transact.commit(transaction);
@@ -177,9 +172,7 @@ public class ConstructedNodesRecoveryTest {
 	}
 
 	private String serialize(final DBBroker broker, final DocumentImpl doc) throws IOException, SAXException {
-		final Serializer serializer = broker.getSerializer();
-		serializer.reset();
-
+		final Serializer serializer = broker.borrowSerializer();
 		SAXSerializer sax = null;
 		try (final StringWriter writer = new StringWriter()) {
 			sax = (SAXSerializer) SerializerPool.getInstance().borrowObject(SAXSerializer.class);
@@ -198,6 +191,7 @@ public class ConstructedNodesRecoveryTest {
 			if (sax != null) {
 				SerializerPool.getInstance().returnObject(sax);
 			}
+			broker.returnSerializer(serializer);
 		}
 	}
 	
@@ -243,7 +237,7 @@ public class ConstructedNodesRecoveryTest {
 	        XQuery service = pool.getXQueryService();
 	        assertNotNull(service);
 	        
-	        CompiledXQuery compiled = service.compile(broker, new XQueryContext(pool), new StringSource(xquery));
+	        CompiledXQuery compiled = service.compile(new XQueryContext(pool), new StringSource(xquery));
 	        assertNotNull(compiled);
 	        
 	        Sequence result = service.execute(broker, compiled, null);

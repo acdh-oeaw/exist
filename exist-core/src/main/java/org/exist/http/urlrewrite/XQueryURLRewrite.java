@@ -473,7 +473,9 @@ public class XQueryURLRewrite extends HttpServlet {
 
         try (final DBBroker broker = pool.get(Optional.ofNullable(user))) {
 
-            model.getSourceInfo().source.validate(broker.getCurrentSubject(), Permission.EXECUTE);
+            if (model.getSourceInfo().source instanceof DBSource) {
+                ((DBSource) model.getSourceInfo().source).validate(Permission.EXECUTE);
+            }
 
             if (model.getSourceInfo().source.isValid(broker) != Source.Validity.VALID) {
                 urlCache.remove(url);
@@ -608,12 +610,14 @@ public class XQueryURLRewrite extends HttpServlet {
 
     private void logResult(final DBBroker broker, final Sequence result) throws SAXException {
         if (LOG.isTraceEnabled() && result.getItemCount() > 0) {
-            final Serializer serializer = broker.getSerializer();
-            serializer.reset();
-
-            final Item item = result.itemAt(0);
-            if (Type.subTypeOf(item.getType(), Type.NODE)) {
-                LOG.trace(serializer.serialize((NodeValue) item));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                final Item item = result.itemAt(0);
+                if (Type.subTypeOf(item.getType(), Type.NODE)) {
+                    LOG.trace(serializer.serialize((NodeValue) item));
+                }
+            } finally {
+                broker.returnSerializer(serializer);
             }
         }
     }
@@ -662,7 +666,7 @@ public class XQueryURLRewrite extends HttpServlet {
         declareVariables(queryContext, sourceInfo, staticRewrite, basePath, request, response);
         if (compiled == null) {
             try {
-                compiled = xquery.compile(broker, queryContext, sourceInfo.source);
+                compiled = xquery.compile(queryContext, sourceInfo.source);
             } catch (final IOException e) {
                 throw new ServletException("Failed to read query from " + query, e);
             }

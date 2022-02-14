@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.exist.EXistException;
 import org.exist.Namespaces;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
 import org.exist.debuggee.DebuggeeFactory;
 import org.exist.dom.QName;
@@ -1048,49 +1047,42 @@ public class RESTServer {
         try(final ManagedCollectionLock managedCollectionLock = broker.getBrokerPool().getLockManager().acquireCollectionWriteLock(collUri)) {
             final Collection collection = broker.getOrCreateCollection(transaction, collUri);
 
-            MimeType mime;
+            final MimeType mime;
             String contentType = request.getContentType();
-            String charset = null;
             if (contentType != null) {
                 final int semicolon = contentType.indexOf(';');
                 if (semicolon > 0) {
                     contentType = contentType.substring(0, semicolon).trim();
-                    final int equals = contentType.indexOf('=', semicolon);
-                    if (equals > 0) {
-                        final String param = contentType.substring(semicolon + 1,
-                                equals).trim();
-                        if (param.compareToIgnoreCase("charset=") == 0) {
-                            charset = param.substring(equals + 1).trim();
-                        }
-                    }
                 }
                 mime = MimeTable.getInstance().getContentType(contentType);
             } else {
                 mime = MimeTable.getInstance().getContentTypeFor(docUri);
-                if (mime != null) {
-                    contentType = mime.getName();
-                }
-            }
-            if (mime == null) {
-                mime = MimeType.BINARY_TYPE;
-                contentType = mime.getName();
             }
 
-            try(final FilterInputStreamCache cache = FilterInputStreamCacheFactory.getCacheInstance(() -> (String) broker.getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY), request.getInputStream());
-                final InputStream cfis = new CachingFilterInputStream(cache)) {
-
-                if (mime.isXMLType()) {
-                    cfis.mark(Integer.MAX_VALUE);
-                    final IndexInfo info = collection.validateXMLResource(transaction, broker, docUri, new InputSource(cfis));
-                    info.getDocument().setMimeType(contentType);
-                    cfis.reset();
-                    collection.store(transaction, broker, info, new InputSource(cfis));
-                    response.setStatus(HttpServletResponse.SC_CREATED);
-                } else {
-                    collection.addBinaryResource(transaction, broker, docUri, cfis, contentType, request.getContentLength());
-                    response.setStatus(HttpServletResponse.SC_CREATED);
-                }
+            // TODO(AR) in storeDocument need to handle mime == null and use MimeType.BINARY_TYPE
+            // TODO(AR) in storeDocument, if the input source has an InputStream (but is not a subclass: FileInputSource or ByteArrayInputSource), need to handle caching and reusing the input stream between validate and store
+            try (final FilterInputStreamCache cache = FilterInputStreamCacheFactory.getCacheInstance(()
+                    -> (String) broker.getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY), request.getInputStream());
+                final CachingFilterInputStream cfis = new CachingFilterInputStream(cache)) {
+                broker.storeDocument(transaction, docUri, new CachingFilterInputStreamInputSource(cfis), mime, collection);
             }
+            response.setStatus(HttpServletResponse.SC_CREATED);
+
+//            try(final FilterInputStreamCache cache = FilterInputStreamCacheFactory.getCacheInstance(() -> (String) broker.getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY), request.getInputStream());
+//                final InputStream cfis = new CachingFilterInputStream(cache)) {
+//
+//                if (mime.isXMLType()) {
+//                    cfis.mark(Integer.MAX_VALUE);
+//                    final IndexInfo info = collection.validateXMLResource(transaction, broker, docUri, new InputSource(cfis));
+//                    info.getDocument().setMimeType(contentType);
+//                    cfis.reset();
+//                    collection.store(transaction, broker, info, new InputSource(cfis));
+//                    response.setStatus(HttpServletResponse.SC_CREATED);
+//                } else {
+//                    collection.addBinaryResource(transaction, broker, docUri, cfis, contentType, request.getContentLength());
+//                    response.setStatus(HttpServletResponse.SC_CREATED);
+//                }
+//            }
 
         } catch (final SAXParseException e) {
             throw new BadRequestException("Parsing exception at "
@@ -1125,6 +1117,7 @@ public class RESTServer {
      * @throws PermissionDeniedException if the request has insufficient permissions
      * @throws NotFoundException if the request resource cannot be found
      * @throws IOException if an I/O error occurs
+     * @throws MethodNotAllowedException if the patch request is not permitted for the resource indicated
      */
     public void doPatch(final DBBroker broker, final Txn transaction, final XmldbURI path,
                       final HttpServletRequest request, final HttpServletResponse response)
@@ -1353,7 +1346,7 @@ public class RESTServer {
             final long compilationTime;
             if (compiled == null) {
                 final long compilationStart = System.currentTimeMillis();
-                compiled = xquery.compile(broker, context, source);
+                compiled = xquery.compile(context, source);
                 compilationTime = System.currentTimeMillis() - compilationStart;
             } else {
                 compiled.getContext().updateContext(context);
@@ -1546,7 +1539,7 @@ public class RESTServer {
             if (compiled == null) {
                 try {
                     final long compilationStart = System.currentTimeMillis();
-                    compiled = xquery.compile(broker, context, source);
+                    compiled = xquery.compile(context, source);
                     compilationTime = System.currentTimeMillis() - compilationStart;
                 } catch (final IOException e) {
                     throw new BadRequestException("Failed to read query from " + resource.getURI(), e);
@@ -1634,7 +1627,7 @@ public class RESTServer {
             if (compiled == null) {
                 try {
                     final long compilationStart = System.currentTimeMillis();
-                    compiled = xquery.compile(broker, context, source);
+                    compiled = xquery.compile(context, source);
                     compilationTime = System.currentTimeMillis() - compilationStart;
                 } catch (final IOException e) {
                     throw new BadRequestException("Failed to read query from "
@@ -1758,8 +1751,7 @@ public class RESTServer {
             // xml resource
 
             SAXSerializer sax = null;
-            final Serializer serializer = broker.getSerializer();
-            serializer.reset();
+            final Serializer serializer = broker.borrowSerializer();
 
             //setup the http context
             final HttpRequestWrapper reqw = new HttpRequestWrapper(request, formEncoding, containerEncoding);
@@ -1823,6 +1815,7 @@ public class RESTServer {
                 if (sax != null) {
                     SerializerPool.getInstance().returnObject(sax);
                 }
+                broker.returnSerializer(serializer);
             }
         }
     }
@@ -2181,53 +2174,54 @@ public class RESTServer {
             howmany = 0;
         }
 
-        final Serializer serializer = broker.getSerializer();
-        serializer.reset();
+        final Serializer serializer = broker.borrowSerializer();
         outputProperties.setProperty(Serializer.GENERATE_DOC_EVENTS, "false");
         try {
             serializer.setProperties(outputProperties);
-            final Writer writer = new OutputStreamWriter(response.getOutputStream(), outputProperties.getProperty(OutputKeys.ENCODING));
-            final JSONObject root = new JSONObject();
-            root.addObject(new JSONSimpleProperty("start", Integer.toString(start), true));
-            root.addObject(new JSONSimpleProperty("count", Integer.toString(howmany), true));
-            root.addObject(new JSONSimpleProperty("hits", Integer.toString(results.getItemCount()), true));
-            if (outputProperties.getProperty(Serializer.PROPERTY_SESSION_ID) != null) {
-                root.addObject(new JSONSimpleProperty("session",
-                        outputProperties.getProperty(Serializer.PROPERTY_SESSION_ID)));
-            }
-            root.addObject(new JSONSimpleProperty("compilationTime", Long.toString(compilationTime), true));
-            root.addObject(new JSONSimpleProperty("executionTime", Long.toString(executionTime), true));
-
-            final JSONObject data = new JSONObject("data");
-            root.addObject(data);
-
-            Item item;
-            for (int i = --start; i < start + howmany; i++) {
-                item = results.itemAt(i);
-                if (Type.subTypeOf(item.getType(), Type.NODE)) {
-                    final NodeValue value = (NodeValue) item;
-                    JSONValue json;
-                    if ("json".equals(outputProperties.getProperty("method", "xml"))) {
-                        json = new JSONValue(serializer.serialize(value), false);
-                        json.setSerializationDataType(JSONNode.SerializationDataType.AS_LITERAL);
-                    } else {
-                        json = new JSONValue(serializer.serialize(value));
-                        json.setSerializationType(JSONNode.SerializationType.AS_ARRAY);
-                    }
-                    data.addObject(json);
-                } else {
-                    final JSONValue json = new JSONValue(item.getStringValue());
-                    json.setSerializationType(JSONNode.SerializationType.AS_ARRAY);
-                    data.addObject(json);
+            try (Writer writer = new OutputStreamWriter(response.getOutputStream(), outputProperties.getProperty(OutputKeys.ENCODING))) {
+                final JSONObject root = new JSONObject();
+                root.addObject(new JSONSimpleProperty("start", Integer.toString(start), true));
+                root.addObject(new JSONSimpleProperty("count", Integer.toString(howmany), true));
+                root.addObject(new JSONSimpleProperty("hits", Integer.toString(results.getItemCount()), true));
+                if (outputProperties.getProperty(Serializer.PROPERTY_SESSION_ID) != null) {
+                    root.addObject(new JSONSimpleProperty("session",
+                            outputProperties.getProperty(Serializer.PROPERTY_SESSION_ID)));
                 }
+                root.addObject(new JSONSimpleProperty("compilationTime", Long.toString(compilationTime), true));
+                root.addObject(new JSONSimpleProperty("executionTime", Long.toString(executionTime), true));
+
+                final JSONObject data = new JSONObject("data");
+                root.addObject(data);
+
+                Item item;
+                for (int i = --start; i < start + howmany; i++) {
+                    item = results.itemAt(i);
+                    if (Type.subTypeOf(item.getType(), Type.NODE)) {
+                        final NodeValue value = (NodeValue) item;
+                        JSONValue json;
+                        if ("json".equals(outputProperties.getProperty("method", "xml"))) {
+                            json = new JSONValue(serializer.serialize(value), false);
+                            json.setSerializationDataType(JSONNode.SerializationDataType.AS_LITERAL);
+                        } else {
+                            json = new JSONValue(serializer.serialize(value));
+                            json.setSerializationType(JSONNode.SerializationType.AS_ARRAY);
+                        }
+                        data.addObject(json);
+                    } else {
+                        final JSONValue json = new JSONValue(item.getStringValue());
+                        json.setSerializationType(JSONNode.SerializationType.AS_ARRAY);
+                        data.addObject(json);
+                    }
+                }
+
+                root.serialize(writer, true);
+
+                writer.flush();
             }
-
-            root.serialize(writer, true);
-
-            writer.flush();
-            writer.close();
         } catch (final IOException | XPathException | SAXException e) {
             throw new BadRequestException("Error while serializing xml: " + e.toString(), e);
+        } finally {
+            broker.returnSerializer(serializer);
         }
     }
 

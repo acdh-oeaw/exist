@@ -22,6 +22,7 @@
 package org.exist.xquery;
 
 import org.exist.dom.QName;
+import org.exist.storage.DBBroker;
 import org.exist.xquery.functions.array.ArrayConstructor;
 import org.exist.xquery.pragmas.Optimize;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +31,7 @@ import org.exist.xquery.util.ExpressionDumper;
 import org.exist.xquery.value.AtomicValue;
 import org.exist.xquery.value.Type;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
 import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
@@ -66,14 +68,16 @@ public class Optimizer extends DefaultExpressionVisitor {
 
     public Optimizer(XQueryContext context) {
         this.context = context;
-        this.rewriters = context.getBroker().getIndexController().getQueryRewriters(context);
+        final DBBroker broker = context.getBroker();
+        this.rewriters = broker != null ? broker.getIndexController().getQueryRewriters(context) : Collections.emptyList();
     }
 
     public boolean hasOptimized() {
         return hasOptimized;
     }
 
-    public void visitLocationStep(LocationStep locationStep) {
+    @Override
+    public void visitLocationStep(final LocationStep locationStep) {
         super.visitLocationStep(locationStep);
 
         // check query rewriters if they want to rewrite the location step
@@ -93,8 +97,8 @@ public class Optimizer extends DefaultExpressionVisitor {
 
         boolean optimize = false;
         // only location steps with predicates can be optimized:
-        if (locationStep.hasPredicates()) {
-            final List<Predicate> preds = locationStep.getPredicates();
+        @Nullable final Predicate[] preds = locationStep.getPredicates();
+        if (preds != null) {
             // walk through the predicates attached to the current location step.
             // try to find a predicate containing an expression which is an instance
             // of Optimizable.

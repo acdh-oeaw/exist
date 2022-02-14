@@ -29,6 +29,7 @@ import org.exist.dom.memtree.SAXAdapter;
 import org.exist.security.PermissionDeniedException;
 import org.exist.source.ClassLoaderSource;
 import org.exist.source.Source;
+import org.exist.storage.BrokerPool;
 import org.exist.util.DatabaseConfigurationException;
 import org.exist.util.ExistSAXParserFactory;
 import org.exist.xquery.FunctionCall;
@@ -174,9 +175,10 @@ public class XMLTestRunner extends AbstractTestRunner {
 
     @Override
     public Description getDescription() {
-        final Description description = Description.createSuiteDescription(getSuiteName(), (java.lang.annotation.Annotation[]) null);
+        final String suiteName = checkDescription(info, getSuiteName());
+        final Description description = Description.createSuiteDescription(suiteName, EMPTY_ANNOTATIONS);
         for (final String childName : info.getChildNames()) {
-            description.addChild(Description.createTestDescription(getSuiteName(), childName, (java.lang.annotation.Annotation[]) null));
+            description.addChild(Description.createTestDescription(suiteName, checkDescription(info, childName), EMPTY_ANNOTATIONS));
         }
         return description;
     }
@@ -200,7 +202,9 @@ public class XMLTestRunner extends AbstractTestRunner {
                 context -> new Tuple2<>("test-finished-function", new FunctionReference(new FunctionCall(context, new ExtTestFinishedFunction(context, getSuiteName(), notifier))))
             );
 
-            executeQuery(query, externalVariableDeclarations);
+            // NOTE: at this stage EXIST_EMBEDDED_SERVER_CLASS_INSTANCE in XSuite will be usable
+            final BrokerPool brokerPool = XSuite.EXIST_EMBEDDED_SERVER_CLASS_INSTANCE.getBrokerPool();
+            executeQuery(brokerPool, query, externalVariableDeclarations);
 
 
         } catch(final DatabaseConfigurationException | IOException | EXistException | PermissionDeniedException | XPathException e) {

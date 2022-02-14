@@ -26,7 +26,6 @@ import java.util.Optional;
 
 import org.exist.EXistException;
 import org.exist.collections.Collection;
-import org.exist.collections.IndexInfo;
 import org.exist.collections.triggers.TriggerException;
 import org.exist.dom.persistent.DocumentImpl;
 import org.exist.security.PermissionDeniedException;
@@ -37,6 +36,8 @@ import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.test.ExistEmbeddedServer;
 import org.exist.util.LockException;
+import org.exist.util.MimeType;
+import org.exist.util.StringInputSource;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.value.NodeValue;
 import org.exist.xquery.value.Sequence;
@@ -74,7 +75,7 @@ public class XQueryUpdateTest {
             	"		</product>\n" +
             	"	into /products";
             XQueryContext context = new XQueryContext(pool);
-            CompiledXQuery compiled = xquery.compile(broker, context, query);
+            CompiledXQuery compiled = xquery.compile(context, query);
             for (int i = 0; i < ITEMS_TO_APPEND; i++) {
                 context.declareVariable("i", Integer.valueOf(i));
                 xquery.execute(broker, compiled, null);
@@ -83,8 +84,12 @@ public class XQueryUpdateTest {
             Sequence seq = xquery.execute(broker, "/products", null);
             assertEquals(seq.getItemCount(), 1);
 
-            Serializer serializer = broker.getSerializer();
-            serializer.serialize((NodeValue) seq.itemAt(0));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                serializer.serialize((NodeValue) seq.itemAt(0));
+            } finally {
+                broker.returnSerializer(serializer);
+            }
 
             seq = xquery.execute(broker, "//product", null);
             assertEquals(ITEMS_TO_APPEND, seq.getItemCount());
@@ -109,7 +114,7 @@ public class XQueryUpdateTest {
             	"		attribute name { concat('n', $i) }\n" +
             	"	into //product[@num = $i]";
             XQueryContext context = new XQueryContext(pool);
-            CompiledXQuery compiled = xquery.compile(broker, context, query);
+            CompiledXQuery compiled = xquery.compile(context, query);
             for (int i = 0; i < ITEMS_TO_APPEND; i++) {
                 context.declareVariable("i", Integer.valueOf(i));
                 xquery.execute(broker, compiled, null);
@@ -118,24 +123,29 @@ public class XQueryUpdateTest {
             Sequence seq = xquery.execute(broker, "/products", null);
             assertEquals(seq.getItemCount(), 1);
 
-            Serializer serializer = broker.getSerializer();
-            serializer.serialize((NodeValue) seq.itemAt(0));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                serializer.serialize((NodeValue) seq.itemAt(0));
 
-            seq = xquery.execute(broker, "//product", null);
-            assertEquals(ITEMS_TO_APPEND, seq.getItemCount());
+                seq = xquery.execute(broker, "//product", null);
+                assertEquals(ITEMS_TO_APPEND, seq.getItemCount());
 
-            seq = xquery.execute(broker, "//product[@name = 'n20']", null);
-            assertEquals(1, seq.getItemCount());
+                seq = xquery.execute(broker, "//product[@name = 'n20']", null);
+                assertEquals(1, seq.getItemCount());
 
-            store(broker, "attribs.xml", "<test attr1='aaa' attr2='bbb'>ccc</test>");
-            query = "update insert attribute attr1 { 'eee' } into /test";
+                store(broker, "attribs.xml", "<test attr1='aaa' attr2='bbb'>ccc</test>");
+                query = "update insert attribute attr1 { 'eee' } into /test";
 
-            //testing duplicate attribute ...
-            xquery.execute(broker, query, null);
+                //testing duplicate attribute ...
+                xquery.execute(broker, query, null);
 
-            seq = xquery.execute(broker, "doc('" + TEST_COLLECTION + "/attribs.xml')/test[@attr1 = 'eee']", null);
-            assertEquals(1, seq.getItemCount());
-            serializer.serialize((NodeValue) seq.itemAt(0));
+                seq = xquery.execute(broker, "doc('" + TEST_COLLECTION + "/attribs.xml')/test[@attr1 = 'eee']", null);
+                assertEquals(1, seq.getItemCount());
+                serializer.serialize((NodeValue) seq.itemAt(0));
+
+            } finally {
+                broker.returnSerializer(serializer);
+            }
         }
     }
 
@@ -169,7 +179,7 @@ public class XQueryUpdateTest {
                 "       </product>\n" +
                 "   preceding /products/product[1]";
             XQueryContext context = new XQueryContext(pool);
-            CompiledXQuery compiled = xquery.compile(broker, context, query);
+            CompiledXQuery compiled = xquery.compile(context, query);
             for (int i = 0; i < ITEMS_TO_APPEND; i++) {
                 context.declareVariable("i", Integer.valueOf(i));
                 xquery.execute(broker, compiled, null);
@@ -178,8 +188,12 @@ public class XQueryUpdateTest {
             seq = xquery.execute(broker, "/products", null);
             assertEquals(seq.getItemCount(), 1);
 
-            Serializer serializer = broker.getSerializer();
-            serializer.serialize((NodeValue) seq.itemAt(0));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                serializer.serialize((NodeValue) seq.itemAt(0));
+            } finally {
+                broker.returnSerializer(serializer);
+            }
 
             seq = xquery.execute(broker, "//product", null);
             assertEquals(ITEMS_TO_APPEND + 1, seq.getItemCount());
@@ -219,7 +233,7 @@ public class XQueryUpdateTest {
                 "       </product>\n" +
                 "   following /products/product[1]";
             XQueryContext context = new XQueryContext(pool);
-            CompiledXQuery compiled = xquery.compile(broker, context, query);
+            CompiledXQuery compiled = xquery.compile(context, query);
             for (int i = 0; i < ITEMS_TO_APPEND; i++) {
                 context.declareVariable("i", Integer.valueOf(i));
                 xquery.execute(broker, compiled, null);
@@ -228,8 +242,12 @@ public class XQueryUpdateTest {
             seq = xquery.execute(broker, "/products", null);
             assertEquals(seq.getItemCount(), 1);
 
-            Serializer serializer = broker.getSerializer();
-            serializer.serialize((NodeValue) seq.itemAt(0));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                serializer.serialize((NodeValue) seq.itemAt(0));
+            } finally {
+                broker.returnSerializer(serializer);
+            }
 
             seq = xquery.execute(broker, "//product", null);
             assertEquals(ITEMS_TO_APPEND + 1, seq.getItemCount());
@@ -409,7 +427,7 @@ public class XQueryUpdateTest {
             	"		</product>\n" +
             	"	into /products";
             XQueryContext context = new XQueryContext(pool);
-            CompiledXQuery compiled = xquery.compile(broker, context, query);
+            CompiledXQuery compiled = xquery.compile(context, query);
             for (int i = 0; i < ITEMS_TO_APPEND; i++) {
                 xquery.execute(broker, compiled, null);
             }
@@ -417,8 +435,12 @@ public class XQueryUpdateTest {
             Sequence seq = xquery.execute(broker, "/products", null);
             assertEquals(seq.getItemCount(), 1);
 
-            Serializer serializer = broker.getSerializer();
-            serializer.serialize((NodeValue) seq.itemAt(0));
+            final Serializer serializer = broker.borrowSerializer();
+            try {
+                serializer.serialize((NodeValue) seq.itemAt(0));
+            } finally {
+                broker.returnSerializer(serializer);
+            }
 
             seq = xquery.execute(broker, "//product", null);
             assertEquals(ITEMS_TO_APPEND, seq.getItemCount());
@@ -482,13 +504,17 @@ public class XQueryUpdateTest {
             root = broker.getOrCreateCollection(transaction, TEST_COLLECTION);
             broker.saveCollection(transaction, root);
 
-            IndexInfo info = root.validateXMLResource(transaction, broker, XmldbURI.create(docName), data);
+            broker.storeDocument(transaction, XmldbURI.create(docName), new StringInputSource(data), MimeType.XML_TYPE, root);
             //TODO : unlock the collection here ?
-            root.store(transaction, broker, info, data);
 
             mgr.commit(transaction);
         }
-        DocumentImpl doc = root.getDocument(broker, XmldbURI.create(docName));
-        broker.getSerializer().serialize(doc);
+        final DocumentImpl doc = root.getDocument(broker, XmldbURI.create(docName));
+        final Serializer serializer = broker.borrowSerializer();
+        try {
+            serializer.serialize(doc);
+        } finally {
+            broker.returnSerializer(serializer);
+        }
     }
 }

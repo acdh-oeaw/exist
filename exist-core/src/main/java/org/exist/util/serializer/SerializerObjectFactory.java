@@ -21,33 +21,49 @@
  */
 package org.exist.util.serializer;
 
-import org.apache.commons.pool.BaseKeyedPoolableObjectFactory;
+import org.apache.commons.pool2.BaseKeyedPooledObjectFactory;
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
 
-/**
- * @author wolf
- *
- */
-public class SerializerObjectFactory extends BaseKeyedPoolableObjectFactory {
+public class SerializerObjectFactory extends BaseKeyedPooledObjectFactory<Class<?>, Object> {
 
-    public Object makeObject(Object key) throws Exception {
-        if (key == SAXSerializer.class)
-            {return new SAXSerializer();}
-        else if (key == DOMStreamer.class)
-            {return new ExtendedDOMStreamer();}
+    @Override
+    public Object create(final Class<?> key) {
+        if (key == SAXSerializer.class) {
+            return new SAXSerializer();
+        } else if (key == DOMStreamer.class) {
+            return new DOMStreamer();
+        } else if (key == ExtendedDOMStreamer.class) {
+            return new ExtendedDOMStreamer();
+        }
         return null;
     }
 
-    public void activateObject(Object key, Object obj) throws Exception {
-        if (key == SAXSerializer.class)
-            {((SAXSerializer)obj).reset();}
-        else if (key == DOMStreamer.class)
-            {((DOMStreamer)obj).reset();}
+    @Override
+    public PooledObject<Object> wrap(final Object value) {
+        return new DefaultPooledObject<>(value);
     }
 
-    public void passivateObject(Object key, Object obj) throws Exception {
-        if (key == SAXSerializer.class)
-            {((SAXSerializer)obj).reset();}
-        else if (key == DOMStreamer.class)
-            {((DOMStreamer)obj).reset();}
+    // TODO(AR) we likely need only call #reset() on #passivateObject(Class, Object)!
+    @Override
+    public void activateObject(final Class<?> key, final PooledObject<Object> p) {
+        if (key == SAXSerializer.class) {
+            ((SAXSerializer) p.getObject()).reset();
+        } else if (key == DOMStreamer.class) {
+            ((DOMStreamer) p.getObject()).reset();
+        } else if (key == ExtendedDOMStreamer.class) {
+            ((ExtendedDOMStreamer) p.getObject()).reset();
+        }
+    }
+
+    @Override
+    public void passivateObject(final Class<?> key, final PooledObject<Object> p) {
+        if (key == SAXSerializer.class) {
+            ((SAXSerializer) p.getObject()).reset();
+        } else if (key == DOMStreamer.class) {
+            ((DOMStreamer) p.getObject()).reset();
+        } else if (key == ExtendedDOMStreamer.class) {
+            ((ExtendedDOMStreamer) p.getObject()).reset();
+        }
     }
 }
