@@ -1,7 +1,7 @@
 :: run 'set vers=5.2.0' or similar
 docker pull gcr.io/distroless/java:11
-mkdir patches
-xcopy /E %vers% patches\
+mkdir patches\%vers% 
+xcopy /E %vers% patches\%vers%\
 git reset --hard
 git checkout eXist-%vers%
 for /f %%p in ('dir /b patches\%vers%') do "C:\Program Files\Git\usr\bin\patch.exe" -p1 < patches\%vers%\%%p
