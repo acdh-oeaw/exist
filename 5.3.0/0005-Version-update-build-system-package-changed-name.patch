@@ -1,15 +1,15 @@
-From 369d7af8f48f3f88b3f8d9e499d362baf84810ba Mon Sep 17 00:00:00 2001
+From 08d82a0bf636aff2e9ed6ba05fec9d7247beb49a Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Mon, 29 Nov 2021 17:39:30 +0100
 Subject: [PATCH 5/7] Version update, build system package changed name
 
 ---
- exist-docker/src/main/resources-filtered/Dockerfile |  2 +-
- exist-parent/pom.xml                                | 12 ++++++------
- 2 files changed, 7 insertions(+), 7 deletions(-)
+ exist-docker/src/main/resources-filtered/Dockerfile | 2 +-
+ exist-parent/pom.xml                                | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index 7048f23eb3..ab885eafb1 100644
+index 186b99bf3f..1416578911 100644
 --- a/exist-docker/src/main/resources-filtered/Dockerfile
 +++ b/exist-docker/src/main/resources-filtered/Dockerfile
 @@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,10 +19,10 @@ index 7048f23eb3..ab885eafb1 100644
 -  ttf-dejavu-core
 +  fonts-dejavu-core
  
- FROM gcr.io/distroless/java:11
+ FROM gcr.io/distroless/java11-debian11
  
 diff --git a/exist-parent/pom.xml b/exist-parent/pom.xml
-index 45c8ebcd99..4e6e47fb1d 100644
+index a7b8277974..98f912d195 100644
 --- a/exist-parent/pom.xml
 +++ b/exist-parent/pom.xml
 @@ -100,7 +100,7 @@
@@ -55,5 +55,5 @@ index 45c8ebcd99..4e6e47fb1d 100644
                      <aggregate>true</aggregate>
                  </configuration>
 -- 
-2.34.1.windows.1
+2.36.1.windows.1
 

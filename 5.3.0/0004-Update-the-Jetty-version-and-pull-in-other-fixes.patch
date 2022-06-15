@@ -1,14 +1,14 @@
-From ae95301d6c4a157679d884781069e131968a56d6 Mon Sep 17 00:00:00 2001
+From aae79072b774c1d39dcbe01e6dff2eaee6a03170 Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Thu, 22 Jul 2021 19:33:38 +0200
 Subject: [PATCH 4/7] Update the Jetty version and pull in other fixes.
 
 ---
- exist-parent/pom.xml | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ exist-parent/pom.xml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/exist-parent/pom.xml b/exist-parent/pom.xml
-index 0bde241ac3..45c8ebcd99 100644
+index 0bde241ac3..a7b8277974 100644
 --- a/exist-parent/pom.xml
 +++ b/exist-parent/pom.xml
 @@ -110,11 +110,11 @@
@@ -26,5 +26,5 @@ index 0bde241ac3..45c8ebcd99 100644
  
          <!-- needed just for the license-maven-plugin in this module! -->
 -- 
-2.34.1.windows.1
+2.36.1.windows.1
 

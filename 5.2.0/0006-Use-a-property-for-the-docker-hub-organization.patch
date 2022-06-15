@@ -1,4 +1,4 @@
-From f5e72025e2836ec366e73402b177cb9dbf62cfcb Mon Sep 17 00:00:00 2001
+From 99414a21810335580da8fe23f75b1c55b00c8a79 Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Mon, 29 Nov 2021 17:41:16 +0100
 Subject: [PATCH 6/7] Use a property for the docker hub organization.
@@ -8,7 +8,7 @@ Subject: [PATCH 6/7] Use a property for the docker hub organization.
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/exist-docker/pom.xml b/exist-docker/pom.xml
-index 426efc3a9d..cdc6f644cb 100644
+index 155de6e7c1..3d3d4d3b79 100644
 --- a/exist-docker/pom.xml
 +++ b/exist-docker/pom.xml
 @@ -25,6 +25,7 @@
@@ -29,5 +29,5 @@ index 426efc3a9d..cdc6f644cb 100644
                                  <tags>
                                      <tag>${docker.tag}</tag>
 -- 
-2.34.1.windows.1
+2.36.1.windows.1
 

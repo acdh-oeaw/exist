@@ -1,7 +1,7 @@
-From caafcf00c7c60b7ad998acd345fed2f1313592bf Mon Sep 17 00:00:00 2001
+From 9342914e5b0b0ca5163ed64ee72c96cced316daa Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Thu, 22 Jul 2021 19:26:10 +0200
-Subject: [PATCH 3/7] Stop direct access to exist using REST (not RESTXQ,
+Subject: [PATCH 3/5] Stop direct access to exist using REST (not RESTXQ,
  breaks tests, some prepare the environment using this interface)
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 3/7] Stop direct access to exist using REST (not RESTXQ,
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml b/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
-index 55bb531f5c..42a716c479 100644
+index 55bb531f5c..cad2acfbf7 100644
 --- a/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
 +++ b/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
 @@ -117,7 +117,7 @@
@@ -22,5 +22,5 @@ index 55bb531f5c..42a716c479 100644
  
          <!--
 -- 
-2.34.1.windows.1
+2.36.1.windows.1
 

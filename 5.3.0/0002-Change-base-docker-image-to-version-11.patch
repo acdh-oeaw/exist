@@ -1,4 +1,4 @@
-From 375f738273731825a55942aae245215e3546b48a Mon Sep 17 00:00:00 2001
+From b5a689d7a7ae35f33d096ac933b1529fa32349a8 Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Thu, 22 Jul 2021 19:24:37 +0200
 Subject: [PATCH 2/7] Change base docker image to version 11.
@@ -8,7 +8,7 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index f9c103e690..7048f23eb3 100644
+index f9c103e690..186b99bf3f 100644
 --- a/exist-docker/src/main/resources-filtered/Dockerfile
 +++ b/exist-docker/src/main/resources-filtered/Dockerfile
 @@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,5 +34,5 @@ index f9c103e690..7048f23eb3 100644
    -XX:MaxRAMFraction=1 \
    -XX:+ExitOnOutOfMemoryError
 -- 
-2.34.1.windows.1
+2.36.1.windows.1
 

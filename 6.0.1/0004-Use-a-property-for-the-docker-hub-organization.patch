@@ -1,14 +1,14 @@
-From f5e72025e2836ec366e73402b177cb9dbf62cfcb Mon Sep 17 00:00:00 2001
+From 3aa61f1a1a57dd387a3b2d051d86f129d072103b Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Mon, 29 Nov 2021 17:41:16 +0100
-Subject: [PATCH 6/7] Use a property for the docker hub organization.
+Subject: [PATCH 4/5] Use a property for the docker hub organization.
 
 ---
  exist-docker/pom.xml | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/exist-docker/pom.xml b/exist-docker/pom.xml
-index fd34489866..5987d1525c 100644
+index 53d4772fff..d21247f4f2 100644
 --- a/exist-docker/pom.xml
 +++ b/exist-docker/pom.xml
 @@ -49,6 +49,7 @@
@@ -17,9 +17,9 @@ index fd34489866..5987d1525c 100644
          <docker.tag>latest</docker.tag>
 +        <docker.org>existdb</docker.org>
      </properties>
-
+ 
      <dependencies>
-@@ -201,7 +207,7 @@
+@@ -206,7 +207,7 @@
                    <verbose>true</verbose>
                      <images>
                          <image>
@@ -28,4 +28,6 @@ index fd34489866..5987d1525c 100644
                              <alias>exist-ci</alias>
                              <build>
                                  <tags>
+-- 
+2.36.1.windows.1
 
