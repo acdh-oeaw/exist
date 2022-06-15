@@ -23,7 +23,6 @@ package org.exist.xquery.value;
 
 import com.ibm.icu.text.Collator;
 import org.exist.xquery.Constants;
-import org.exist.xquery.Constants.Comparison;
 import org.exist.xquery.ErrorCodes;
 import org.exist.xquery.XPathException;
 
@@ -210,6 +209,7 @@ public class DecimalValue extends NumericValue {
     /* (non-Javadoc)
      * @see org.exist.xquery.value.Sequence#convertTo(int)
      */
+    @Override
     public AtomicValue convertTo(int requiredType) throws XPathException {
         switch (requiredType) {
             case Type.ATOMIC:
@@ -283,7 +283,8 @@ public class DecimalValue extends NumericValue {
         } else if (other instanceof DoubleValue) {
             comparison = () -> value.compareTo(BigDecimal.valueOf(((DoubleValue)other).value));
         } else if (other instanceof FloatValue) {
-            comparison = () -> value.compareTo(BigDecimal.valueOf(((FloatValue)other).value));
+            final BigDecimal otherPromoted = new BigDecimal(Float.toString(((FloatValue)other).value));
+            comparison = () -> value.compareTo(otherPromoted);
         } else {
             return null;
         }
@@ -330,12 +331,12 @@ public class DecimalValue extends NumericValue {
     /* (non-Javadoc)
      * @see org.exist.xquery.value.NumericValue#round(org.exist.xquery.value.IntegerValue)
      */
-    public NumericValue round(IntegerValue precision) throws XPathException {
+    public NumericValue round(final IntegerValue precision, final RoundingMode roundingMode) throws XPathException {
         if (value.signum() == 0) {
             return this;
         }
 
-        int pre;
+        final int pre;
         if (precision == null) {
             pre = 0;
         } else {
@@ -343,19 +344,26 @@ public class DecimalValue extends NumericValue {
         }
 
         if (pre >= 0) {
-            return new DecimalValue(value.setScale(pre, RoundingMode.HALF_EVEN));
+            return new DecimalValue(value.setScale(pre, roundingMode));
         } else {
             return new DecimalValue(
                     value.movePointRight(pre).
-                            setScale(0, RoundingMode.HALF_EVEN).
+                            setScale(0, roundingMode).
                             movePointLeft(pre));
         }
     }
 
+    protected static final RoundingMode DEFAULT_ROUNDING_MODE = RoundingMode.HALF_EVEN;
+
     /* (non-Javadoc)
-     * @see org.exist.xquery.value.NumericValue#minus(org.exist.xquery.value.NumericValue)
+     * @see org.exist.xquery.value.NumericValue#round(org.exist.xquery.value.IntegerValue)
      */
-    public ComputableValue minus(ComputableValue other) throws XPathException {
+    public NumericValue round(final IntegerValue precision) throws XPathException {
+        return round(precision, DecimalValue.DEFAULT_ROUNDING_MODE);
+    }
+
+    @Override
+    public ComputableValue minus(final ComputableValue other) throws XPathException {
         switch (other.getType()) {
             case Type.DECIMAL:
                 return new DecimalValue(value.subtract(((DecimalValue) other).value));
@@ -366,10 +374,8 @@ public class DecimalValue extends NumericValue {
         }
     }
 
-    /* (non-Javadoc)
-     * @see org.exist.xquery.value.NumericValue#plus(org.exist.xquery.value.NumericValue)
-     */
-    public ComputableValue plus(ComputableValue other) throws XPathException {
+    @Override
+    public ComputableValue plus(final ComputableValue other) throws XPathException {
         switch (other.getType()) {
             case Type.DECIMAL:
                 return new DecimalValue(value.add(((DecimalValue) other).value));

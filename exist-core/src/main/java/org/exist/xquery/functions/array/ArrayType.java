@@ -215,6 +215,11 @@ public class ArrayType extends FunctionReference implements Lookup.LookupSupport
     }
 
     @Override
+    public Sequence eval(final Sequence contextSequence, final Item contextItem) throws XPathException {
+        return accessorFunc.eval(contextSequence, contextItem);
+    }
+
+    @Override
     public Sequence evalFunction(final Sequence contextSequence, final Item contextItem, final Sequence[] seq) throws XPathException {
         final AccessorFunc af =  (AccessorFunc) accessorFunc.getFunction();
         return af.eval(seq, contextSequence);
@@ -380,6 +385,28 @@ public class ArrayType extends FunctionReference implements Lookup.LookupSupport
             }
         }
         return flatten ? flatten(input, new ValueSequence(input.getItemCount() * 2)) : input;
+    }
+
+    @Override
+    public boolean containsReference(final Item item) {
+        for (int i = 0; i < vector.length(); i++) {
+            final Sequence value = vector.nth(i);
+            if (value == item || value.containsReference(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean contains(final Item item) {
+        for (int i = 0; i < vector.length(); i++) {
+            final Sequence value = vector.nth(i);
+            if (value.equals(item) || value.contains(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

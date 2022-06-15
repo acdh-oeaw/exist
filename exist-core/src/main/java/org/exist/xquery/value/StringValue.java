@@ -494,6 +494,8 @@ public class StringValue extends AtomicValue {
                 return new TimeValue(value);
             case Type.DATE:
                 return new DateValue(value);
+            case Type.DATE_TIME_STAMP:
+                return new DateTimeStampValue(value);
             case Type.DURATION:
                 return new DurationValue(value);
             case Type.YEAR_MONTH_DURATION:
@@ -512,8 +514,6 @@ public class StringValue extends AtomicValue {
                 return new GMonthDayValue(value);
             case Type.UNTYPED_ATOMIC:
                 return new UntypedAtomicValue(getStringValue());
-            case Type.QNAME:
-                return new QNameValue(null, new QName(value, XMLConstants.NULL_NS_URI));
             default:
                 throw new XPathException(ErrorCodes.FORG0001, "cannot cast '" +
                         Type.getTypeName(this.getItemType()) + "(\"" + getStringValue() + "\")' to " +

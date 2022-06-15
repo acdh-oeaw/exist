@@ -99,6 +99,9 @@ import java.util.regex.Pattern;
 
 import org.exist.storage.dom.INodeIterator;
 import com.evolvedbinary.j8fu.tuple.Tuple2;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.exist.security.Permission.DEFAULT_TEMPORARY_COLLECTION_PERM;
@@ -572,7 +575,7 @@ public class NativeBroker extends DBBroker {
         throws LockException, PermissionDeniedException, IOException, TriggerException {
         try {
             pushSubject(pool.getSecurityManager().getSystemSubject());
-            final Tuple2<Boolean, Collection> temp = getOrCreateCollectionExplicit(transaction, XmldbURI.TEMP_COLLECTION_URI, Optional.empty());
+            final Tuple2<Boolean, Collection> temp = getOrCreateCollectionExplicit(transaction, XmldbURI.TEMP_COLLECTION_URI, Optional.empty(), true);
             if (temp._1) {
                 temp._2.setPermissions(this, DEFAULT_TEMPORARY_COLLECTION_PERM);
                 saveCollection(transaction, temp._2);
@@ -612,12 +615,12 @@ public class NativeBroker extends DBBroker {
 
     @Override
     public Collection getOrCreateCollection(final Txn transaction, final XmldbURI name) throws PermissionDeniedException, IOException, TriggerException {
-        return getOrCreateCollectionExplicit(transaction, name, Optional.empty())._2;
+        return getOrCreateCollectionExplicit(transaction, name, Optional.empty(), true)._2;
     }
 
     @Override
     public Collection getOrCreateCollection(final Txn transaction, final XmldbURI name, final Optional<Tuple2<Permission, Long>> creationAttributes) throws PermissionDeniedException, IOException, TriggerException {
-        return getOrCreateCollectionExplicit(transaction, name, creationAttributes)._2;
+        return getOrCreateCollectionExplicit(transaction, name, creationAttributes, true)._2;
     }
 
     /**
@@ -631,6 +634,12 @@ public class NativeBroker extends DBBroker {
      *
      * @param transaction The current transaction
      * @param path The Collection's URI
+     * @param creationAttributes the attributes to use if the collection needs to be created,
+     *                           the first item is a Permission (or null for default),
+     *                           the second item is a Creation Date.
+     * @param fireTrigger Indicates whether the CollectionTrigger should be fired.
+     *                    Typically true, but can be set to false when creating a collection is
+     *                    part of a composite operation like `copy`.
      *
      * @return A tuple whose first boolean value is set to true if the
      * collection was created, or false if the collection already existed. The
@@ -640,7 +649,7 @@ public class NativeBroker extends DBBroker {
      * @throws IOException If an error occurs whilst reading (get) or writing (create) a Collection to disk
      * @throws TriggerException If a CollectionTrigger throws an exception
      */
-    private Tuple2<Boolean, Collection> getOrCreateCollectionExplicit(final Txn transaction, final XmldbURI path, final Optional<Tuple2<Permission, Long>> creationAttributes) throws PermissionDeniedException, IOException, TriggerException {
+    private Tuple2<Boolean, Collection> getOrCreateCollectionExplicit(final Txn transaction, final XmldbURI path, final Optional<Tuple2<Permission, Long>> creationAttributes, final boolean fireTrigger) throws PermissionDeniedException, IOException, TriggerException {
         final XmldbURI collectionUri = prepend(path.toCollectionPathURI().normalizeCollectionPath());
         final XmldbURI parentCollectionUri = collectionUri.removeLastSegment();
 
@@ -668,7 +677,7 @@ public class NativeBroker extends DBBroker {
                 // is the parent Collection in the cache?
                 if (parentCollectionUri == XmldbURI.EMPTY_URI) {
                     // no parent... so, this is the root collection!
-                    return getOrCreateCollectionExplicit_rootCollection(transaction, collectionUri, collectionsCache);
+                    return getOrCreateCollectionExplicit_rootCollection(transaction, collectionUri, collectionsCache, fireTrigger);
                 } else {
                     final Collection parentCollection = collectionsCache.getIfPresent(parentCollectionUri);
                     if (parentCollection != null) {
@@ -684,7 +693,7 @@ public class NativeBroker extends DBBroker {
 
                         } else {
                             // not on disk, create the collection
-                            return new Tuple2<>(true, createCollection(transaction, parentCollection, collectionUri, collectionsCache, creationAttributes));
+                            return new Tuple2<>(true, createCollection(transaction, parentCollection, collectionUri, collectionsCache, creationAttributes, fireTrigger));
                         }
 
                     } else {
@@ -701,8 +710,8 @@ public class NativeBroker extends DBBroker {
             //TODO(AR) below, should we just fall back to recursive descent creating the collection hierarchy in the same manner that getOrCreateCollection used to do?
 
             // 3) No parent collection was previously found in cache so we need to call this function for the parent Collection and then ourselves
-            final Tuple2<Boolean, Collection> newOrExistingParentCollection = getOrCreateCollectionExplicit(transaction, parentCollectionUri, creationAttributes);
-            return getOrCreateCollectionExplicit(transaction, collectionUri, creationAttributes);
+            final Tuple2<Boolean, Collection> newOrExistingParentCollection = getOrCreateCollectionExplicit(transaction, parentCollectionUri, creationAttributes, fireTrigger);
+            return getOrCreateCollectionExplicit(transaction, collectionUri, creationAttributes, fireTrigger);
 
         } catch(final ReadOnlyException e) {
             throw new PermissionDeniedException(DATABASE_IS_READ_ONLY);
@@ -711,7 +720,7 @@ public class NativeBroker extends DBBroker {
         }
     }
 
-    private Tuple2<Boolean, Collection> getOrCreateCollectionExplicit_rootCollection(final Txn transaction, final XmldbURI collectionUri, final CollectionCache collectionsCache) throws PermissionDeniedException, IOException, LockException, ReadOnlyException, TriggerException {
+    private Tuple2<Boolean, Collection> getOrCreateCollectionExplicit_rootCollection(final Txn transaction, final XmldbURI collectionUri, final CollectionCache collectionsCache, final boolean fireTrigger) throws PermissionDeniedException, IOException, LockException, ReadOnlyException, TriggerException {
         // this is the root collection, so no parent, is the Collection present on disk?
 
         final Collection loadedRootCollection = loadCollection(collectionUri);
@@ -724,7 +733,7 @@ public class NativeBroker extends DBBroker {
             return new Tuple2<>(false, loadedRootCollection);
         } else {
             // not on disk, create the root collection
-            final Collection rootCollection = createCollection(transaction, null, collectionUri, collectionsCache, Optional.empty());
+            final Collection rootCollection = createCollection(transaction, null, collectionUri, collectionsCache, Optional.empty(), fireTrigger);
 
             //import an initial collection configuration
             try {
@@ -759,7 +768,7 @@ public class NativeBroker extends DBBroker {
     private @EnsureUnlocked Collection createCollection(final Txn transaction,
             @Nullable @EnsureLocked(mode=LockMode.WRITE_LOCK) final Collection parentCollection,
             @EnsureLocked(mode=LockMode.WRITE_LOCK, type=LockType.COLLECTION) final XmldbURI collectionUri,
-            final CollectionCache collectionCache, final Optional<Tuple2<Permission, Long>> creationAttributes)
+            final CollectionCache collectionCache, final Optional<Tuple2<Permission, Long>> creationAttributes, final boolean fireTrigger)
             throws TriggerException, ReadOnlyException, PermissionDeniedException, LockException, IOException {
 
         if(parentCollection != null && !parentCollection.getPermissionsNoLock().validate(getCurrentSubject(), Permission.WRITE)){
@@ -767,12 +776,16 @@ public class NativeBroker extends DBBroker {
         }
 
         final CollectionTrigger trigger;
-        if(parentCollection == null) {
-            trigger = new CollectionTriggers(this, transaction);
+        if (fireTrigger) {
+            if (parentCollection == null) {
+                trigger = new CollectionTriggers(this, transaction);
+            } else {
+                trigger = new CollectionTriggers(this, transaction, parentCollection);
+            }
+            trigger.beforeCreateCollection(this, transaction, collectionUri);
         } else {
-            trigger = new CollectionTriggers(this, transaction, parentCollection);
+            trigger = null;
         }
-        trigger.beforeCreateCollection(this, transaction, collectionUri);
 
         final Collection collectionObj = createCollectionObject(transaction, parentCollection, collectionUri, creationAttributes);
         saveCollection(transaction, collectionObj);
@@ -784,7 +797,9 @@ public class NativeBroker extends DBBroker {
 
         collectionCache.put(collectionObj);
 
-        trigger.afterCreateCollection(this, transaction, collectionObj);
+        if (fireTrigger) {
+            trigger.afterCreateCollection(this, transaction, collectionObj);
+        }
 
         return collectionObj;
     }
@@ -1226,7 +1241,7 @@ public class NativeBroker extends DBBroker {
             created = 0;
         }
 
-        final Tuple2<Boolean, Collection> destinationCollection = getOrCreateCollectionExplicit(transaction, destinationCollectionUri, Optional.of(new Tuple2<>(createCollectionPerms, created)));
+        final Tuple2<Boolean, Collection> destinationCollection = getOrCreateCollectionExplicit(transaction, destinationCollectionUri, Optional.of(new Tuple2<>(createCollectionPerms, created)), false);
 
         // if we didn't create destCollection but we need to preserve the attributes
         if((!destinationCollection._1) && preserveOnCopy(preserve)) {
@@ -2127,6 +2142,26 @@ public class NativeBroker extends DBBroker {
         }
 
         return getResource(uri, Permission.READ);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final InputSource source, final @Nullable MimeType mimeType, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, source, mimeType);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final InputSource source, final @Nullable MimeType mimeType, final @Nullable Date createdDate, final @Nullable Date lastModifiedDate, final @Nullable Permission permission, final @Nullable DocumentType documentType, final @Nullable XMLReader xmlReader, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, source, mimeType, createdDate, lastModifiedDate, permission, documentType, xmlReader);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final Node node, final @Nullable MimeType mimeType, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, node, mimeType);
+    }
+
+    @Override
+    public void storeDocument(final Txn transaction, final XmldbURI name, final Node node, final @Nullable MimeType mimeType, final @Nullable Date createdDate, final @Nullable Date lastModifiedDate, final @Nullable Permission permission, final @Nullable DocumentType documentType, final @Nullable XMLReader xmlReader, final Collection collection) throws EXistException, PermissionDeniedException, TriggerException, SAXException, LockException, IOException {
+        collection.storeDocument(transaction, this, name, node, mimeType, createdDate, lastModifiedDate, permission, documentType, xmlReader);
     }
 
     /**

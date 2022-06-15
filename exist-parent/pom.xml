@@ -27,7 +27,7 @@
 
     <groupId>org.exist-db</groupId>
     <artifactId>exist-parent</artifactId>
-    <version>5.4.0-SNAPSHOT</version>
+    <version>6.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>eXist-db Parent</name>
@@ -103,23 +103,28 @@
         <ant.version>1.10.12</ant.version>
         <apache.httpcomponents.version>4.5.13</apache.httpcomponents.version>
         <apache.httpcomponents.core.version>4.4.15</apache.httpcomponents.core.version>
-        <apache.xmlrpc.version>3.1.3</apache.xmlrpc.version>
+        <apache.xmlrpc.version>4.0.0</apache.xmlrpc.version>
+        <appassembler.version>2.1.0</appassembler.version>
         <aspectj.version>1.9.8.M1</aspectj.version>
-        <exquery.distribution.version>0.2.0</exquery.distribution.version>
+        <exquery.distribution.version>0.2.1</exquery.distribution.version>
         <icu.version>59.1</icu.version>
         <izpack.version>5.1.3</izpack.version>
+        <jansi.version>2.4.0</jansi.version>
         <jaxb.api.version>3.0.1</jaxb.api.version>
         <jaxb.impl.version>3.0.2</jaxb.impl.version>
-        <jetty.version>9.4.44.v20210927</jetty.version>
-        <log4j.version>2.15.0</log4j.version>
+        <jetty.version>9.4.45.v20220203</jetty.version>
+        <log4j.version>2.17.2</log4j.version>
         <lucene.version>4.10.4</lucene.version>
         <milton.version>1.8.1.3</milton.version>
         <saxon.version>9.9.1-8</saxon.version>
-        <xmlunit.version>2.8.3</xmlunit.version>
+        <xmlresolver.version>4.3.0</xmlresolver.version>
+        <xmlunit.version>2.9.0</xmlunit.version>
         <junit.version>4.13.2</junit.version>
-        <junit.jupiter.version>5.8.1</junit.jupiter.version>
+        <junit.jupiter.version>5.8.2</junit.jupiter.version>
         <junit.vintage.version>5.8.2</junit.vintage.version>
         <easymock.version>4.3</easymock.version>
+        <objenesis.version>3.2</objenesis.version>
+        <assertj.version>3.23.1</assertj.version>
         <junit.toolbox.version>2.4</junit.toolbox.version>
         <hamcrest.version>2.2</hamcrest.version>
 
@@ -175,7 +180,7 @@
             <dependency>
                 <groupId>org.jctools</groupId>
                 <artifactId>jctools-core</artifactId>
-                <version>3.3.0</version>
+                <version>3.3.1-ea</version>
             </dependency>
 
             <dependency>
@@ -188,6 +193,11 @@
                 <groupId>com.evolvedbinary.j8fu</groupId>
                 <artifactId>j8fu</artifactId>
                 <version>1.23.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.evolvedbinary.multilock</groupId>
+                <artifactId>multilock</artifactId>
+                <version>1.0.1</version>
             </dependency>
 
             <dependency>
@@ -247,7 +257,7 @@
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>1.7.32</version>
+                <version>1.7.36</version>
             </dependency>
 
             <dependency>
@@ -257,7 +267,7 @@
             </dependency>
 
             <dependency>
-                <groupId>org.apache.xmlrpc</groupId>
+                <groupId>com.evolvedbinary.thirdparty.org.apache.xmlrpc</groupId>
                 <artifactId>xmlrpc-common</artifactId>
                 <version>${apache.xmlrpc.version}</version>
                 <exclusions>
@@ -426,7 +436,7 @@
             <dependency>
                 <groupId>it.unimi.dsi</groupId>
                 <artifactId>fastutil</artifactId>
-                <version>8.5.6</version>
+                <version>8.5.8</version>
             </dependency>
 
             <dependency>
@@ -477,6 +487,18 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.vintage</groupId>
+                <artifactId>junit-vintage-engine</artifactId>
+                <version>${junit.vintage.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>${junit.version}</version>
@@ -498,15 +520,27 @@
 
             <!-- test dependencies -->
             <dependency>
+                <groupId>com.googlecode.junit-toolbox</groupId>
+                <artifactId>junit-toolbox</artifactId>
+                <version>${junit.toolbox.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.easymock</groupId>
                 <artifactId>easymock</artifactId>
                 <version>${easymock.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>com.googlecode.junit-toolbox</groupId>
-                <artifactId>junit-toolbox</artifactId>
-                <version>${junit.toolbox.version}</version>
+                <groupId>org.objenesis</groupId>
+                <artifactId>objenesis</artifactId>
+                <version>${objenesis.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
@@ -519,7 +553,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-clean-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>com.mycila</groupId>
@@ -529,7 +563,7 @@
                 <plugin>
                     <groupId>org.owasp</groupId>
                     <artifactId>dependency-check-maven</artifactId>
-                    <version>6.5.0</version>
+                    <version>7.1.1</version>
                     <configuration>
                         <!-- Use Evolved Binary's mirror of nvd.nist.gov -->
                         <cveUrlModified>https://nvd.mirror.evolvedbinary.com/feeds/json/cve/1.1/nvdcve-1.1-modified.json.gz</cveUrlModified>
@@ -588,7 +622,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.1</version>
+                    <version>3.10.1</version>
                     <configuration>
                         <source>${project.build.source}</source>
                         <target>${project.build.target}</target>
@@ -598,7 +632,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.2.0</version>
+                    <version>3.2.2</version>
                     <configuration>
                         <archive>
                             <manifest>
@@ -644,7 +678,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.3.1</version>
+                    <version>3.4.0</version>
                     <configuration>
                         <source>${project.build.source}</source>
                         <archive>
@@ -674,7 +708,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.7</version>
+                    <version>0.8.8</version>
                     <configuration>
                         <propertyName>jacocoArgLine</propertyName>
                         <excludes>
@@ -699,7 +733,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M7</version>
                     <dependencies>
                         <dependency>
                             <groupId>org.junit.jupiter</groupId>
@@ -715,6 +749,11 @@
                             <groupId>org.glassfish.jaxb</groupId>
                             <artifactId>jaxb-runtime</artifactId>
                             <version>${jaxb.impl.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.objenesis</groupId>
+                            <artifactId>objenesis</artifactId>
+                            <version>${objenesis.version}</version>
                         </dependency>
                     </dependencies>
                     <configuration>
@@ -736,17 +775,17 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-report-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M7</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M7</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-project-info-reports-plugin</artifactId>
-                    <version>3.1.2</version>
+                    <version>3.3.0</version>
                     <configuration>
                         <dependencyDetailsEnabled>false</dependencyDetailsEnabled>  <!-- TODO(AR) disabled due to slow `mvn site` build times -->
                     </configuration>
@@ -754,12 +793,12 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>versions-maven-plugin</artifactId>
-                    <version>2.8.1</version>
+                    <version>2.11.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
-                    <version>3.9.1</version>
+                    <version>3.12.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -792,7 +831,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
-                    <version>3.2.4</version>
+                    <version>3.3.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -802,7 +841,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.0.0-M1</version>
+                    <version>3.0.0-M2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -818,7 +857,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-scm-plugin</artifactId>
-                    <version>1.12.0</version>
+                    <version>1.13.0</version>
                     <configuration>
                         <sign>true</sign>
                     </configuration>
@@ -855,6 +894,8 @@
                             <header>${project.parent.relativePath}/LGPL-21-license.template.txt</header>
                             <excludes>
                                 <exclude>FDB-backport-LGPL-21-ONLY-license.template.txt</exclude>
+                                <exclude>FDB-backport-LGPL-21-ONLY-license.xml.template.txt</exclude>
+                                <exclude>LGPL-21-license.txt</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
@@ -865,6 +906,7 @@
                         <form>XML_STYLE</form>
                         <g>SLASHSTAR_STYLE</g>
                         <java>SLASHSTAR_STYLE</java>
+                        <plist>XML_STYLE</plist>
                         <xconf>XML_STYLE</xconf>
                         <xconf.init>XML_STYLE</xconf.init>
                         <xq>XQUERY_STYLE</xq>
@@ -929,9 +971,6 @@
                         </goals>
                         <configuration>
                             <failOnWarning>true</failOnWarning>
-                            <ignoredDependencies>
-                                <ignoredDependency>org.junit.jupiter:junit-jupiter-api</ignoredDependency>
-                            </ignoredDependencies>
                         </configuration>
                     </execution>
                 </executions>

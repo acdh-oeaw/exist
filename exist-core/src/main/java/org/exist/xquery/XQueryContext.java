@@ -292,6 +292,11 @@ public class XQueryContext implements BinaryValueManager, Context {
     private String defaultCollation = Collations.UNICODE_CODEPOINT_COLLATION_URI;
 
     /**
+     * The default language
+     */
+    private static final String DefaultLanguage = Locale.getDefault().getLanguage();
+
+    /**
      * Default Collator. Will be null for the default unicode codepoint collation.
      */
     private Collator defaultCollator = null;
@@ -1869,6 +1874,11 @@ public class XQueryContext implements BinaryValueManager, Context {
 
     @Override
     public Variable resolveVariable(final QName qname) throws XPathException {
+        return resolveVariable(null, qname);
+    }
+    
+    @Override
+    public Variable resolveVariable(@Nullable final AnalyzeContextInfo contextInfo, final QName qname) throws XPathException {
         // check if the variable is declared local
         Variable var = resolveLocalVariable(qname);
 
@@ -1878,7 +1888,7 @@ public class XQueryContext implements BinaryValueManager, Context {
 
             if (modules != null) {
                 for (final Module module : modules) {
-                    var = module.resolveVariable(qname);
+                    var = module.resolveVariable(contextInfo, qname);
                     if (var != null) {
                         break;
                     }
@@ -3310,6 +3320,11 @@ public class XQueryContext implements BinaryValueManager, Context {
     @Override
     public void setSource(final Source source) {
         this.source = source;
+    }
+
+    @Override
+    public String getDefaultLanguage() {
+        return DefaultLanguage;
     }
 
     /**
