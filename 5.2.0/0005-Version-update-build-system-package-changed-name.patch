@@ -1,25 +1,11 @@
-From 2e9526f32fdaf1c31fd0147ed6fccfa93232fd1a Mon Sep 17 00:00:00 2001
+From 08d82a0bf636aff2e9ed6ba05fec9d7247beb49a Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Mon, 29 Nov 2021 17:39:30 +0100
 Subject: [PATCH 5/7] Version update, build system package changed name
 
 ---
- exist-docker/src/main/resources-filtered/Dockerfile | 2 +-
- exist-parent/pom.xml                                | 6 +++---
- 2 files changed, 4 insertions(+), 4 deletions(-)
-
-diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index 5e0ff6072b..1886a2e05b 100644
---- a/exist-docker/src/main/resources-filtered/Dockerfile
-+++ b/exist-docker/src/main/resources-filtered/Dockerfile
-@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
-   expat \
-   fontconfig \
-   liblcms2-2 \
--  ttf-dejavu-core
-+  fonts-dejavu-core
- 
- FROM gcr.io/distroless/java11-debian11
+ exist-parent/pom.xml                                | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
  
 diff --git a/exist-parent/pom.xml b/exist-parent/pom.xml
 index 469f6acf55..846f55a176 100644

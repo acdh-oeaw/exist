@@ -1,4 +1,4 @@
-From 81d6fb68cd8f1f35a20c716b55f76d586fda0413 Mon Sep 17 00:00:00 2001
+From b5a689d7a7ae35f33d096ac933b1529fa32349a8 Mon Sep 17 00:00:00 2001
 From: Omar Siam <Omar.Siam@oeaw.ac.at>
 Date: Thu, 22 Jul 2021 19:24:37 +0200
 Subject: [PATCH 2/7] Change base docker image to version 11.
@@ -7,20 +7,32 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index 9e87214d07..5e0ff6072b 100644
---- a/exist-docker/src/main/resources-filtered/Dockerfile
-+++ b/exist-docker/src/main/resources-filtered/Dockerfile
-@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
+index f9c103e690..bf7ac4922b 100644
+--- "a/exist-docker/src/main/resources-filtered/Dockerfile"
++++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
+@@ -20,7 +20,7 @@
+ # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ #
+ 
+-FROM openjdk:8-jdk-slim as builder
++FROM openjdk:11-slim-bullseye as builder
+ 
+ # Install tools required by FOP
+ WORKDIR /usr/local
+@@ -28,9 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+   expat \
+   fontconfig \
    liblcms2-2 \
-   ttf-dejavu-core
+-  ttf-dejavu-core
++  fonts-dejavu-core
  
 -FROM gcr.io/distroless/java:8
 +FROM gcr.io/distroless/java11-debian11
  
  # Copy over dependancies for Apache FOP, missing from gcr's JRE
  COPY --from=builder /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
-@@ -61,9 +61,10 @@ ENV JAVA_TOOL_OPTIONS \
+@@ -83,9 +83,10 @@ ENV JAVA_TOOL_OPTIONS \
    -Dexist.configurationFile=/exist/etc/conf.xml \
    -Djetty.home=/exist \
    -Dexist.jetty.config=/exist/etc/jetty/standard.enabled-jetty-configs \

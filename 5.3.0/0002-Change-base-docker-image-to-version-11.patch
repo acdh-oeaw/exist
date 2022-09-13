@@ -7,13 +7,25 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index f9c103e690..186b99bf3f 100644
---- a/exist-docker/src/main/resources-filtered/Dockerfile
-+++ b/exist-docker/src/main/resources-filtered/Dockerfile
-@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
+index f9c103e690..bf7ac4922b 100644
+--- "a/exist-docker/src/main/resources-filtered/Dockerfile"
++++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
+@@ -20,7 +20,7 @@
+ # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ #
+ 
+-FROM openjdk:8-jdk-slim as builder
++FROM openjdk:11-slim-bullseye as builder
+ 
+ # Install tools required by FOP
+ WORKDIR /usr/local
+@@ -28,9 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+   expat \
+   fontconfig \
    liblcms2-2 \
-   ttf-dejavu-core
+-  ttf-dejavu-core
++  fonts-dejavu-core
  
 -FROM gcr.io/distroless/java:8
 +FROM gcr.io/distroless/java11-debian11
