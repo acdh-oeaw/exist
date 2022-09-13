@@ -7,19 +7,37 @@ Subject: [PATCH 2/5] Change base docker image to version 11.
  exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
-index 0e822b3d32..6f771df2fc 100644
---- a/exist-docker/src/main/resources-filtered/Dockerfile
-+++ b/exist-docker/src/main/resources-filtered/Dockerfile
-@@ -26,7 +26,7 @@ RUN apt-get update && apt-get dist-upgrade
- RUN apt-get install -y openjdk-8-jre-headless
+diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
+index 0e822b3d32..08b8354a56 100644
+--- "a/exist-docker/src/main/resources-filtered/Dockerfile"
++++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
+@@ -20,18 +20,18 @@
+ # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ #
+ 
+-# Install latest JRE 8 in Debian Stretch (which is the base of gcr.io/distroless/java:8)
+-FROM debian:stretch-slim as updated-jre
+-RUN apt-get update && apt-get dist-upgrade
+-RUN apt-get install -y openjdk-8-jre-headless
++# Install latest JRE 11 in Debian Stretch (which is the base of gcr.io/distroless/java11-debian11)
++FROM debian:bullseye-slim as updated-jre
++RUN apt-get update && apt-get -y dist-upgrade
++RUN apt-get install -y openjdk-11-jre-headless
  RUN apt-get install -y expat fontconfig     # Install tools required by FOP
  
 -FROM gcr.io/distroless/java:8
 +FROM gcr.io/distroless/java11-debian11
  
  # Copy over updated JRE from Debian Stretch
- COPY --from=updated-jre /etc/java-8-openjdk /etc/java-8-openjdk
+-COPY --from=updated-jre /etc/java-8-openjdk /etc/java-8-openjdk
+-COPY --from=updated-jre /usr/lib/jvm/java-8-openjdk-amd64 /usr/lib/jvm/java-8-openjdk-amd64
+-COPY --from=updated-jre /usr/share/gdb/auto-load/usr/lib/jvm/java-8-openjdk-amd64 /usr/share/gdb/auto-load/usr/lib/jvm/java-8-openjdk-amd64
++COPY --from=updated-jre /etc/java-11-openjdk /etc/java-11-openjdk
++COPY --from=updated-jre /usr/lib/jvm/java-11-openjdk-amd64 /usr/lib/jvm/java-11-openjdk-amd64
++COPY --from=updated-jre /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64 /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64
+ 
+ # Copy over dependencies for Apache FOP, missing from GCR's JRE
+ COPY --from=updated-jre /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
 @@ -84,9 +84,10 @@ ENV JAVA_TOOL_OPTIONS \
    -Dexist.configurationFile=/exist/etc/conf.xml \
    -Djetty.home=/exist \
