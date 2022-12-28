@@ -8,13 +8,10 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
-index f9c103e690..bf7ac4922b 100644
+index 9e87214d07..22e64c2542 100644
 --- "a/exist-docker/src/main/resources-filtered/Dockerfile"
 +++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
-@@ -20,7 +20,7 @@
- # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- #
- 
+@@ -1,4 +1,4 @@
 -FROM openjdk:8-jdk-slim as builder
 +FROM openjdk:11-slim-bullseye as builder
  
