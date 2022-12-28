@@ -37,6 +37,85 @@ index 1cb57d6f7f..469f6acf55 100644
          <xmlunit.version>2.6.3</xmlunit.version>
  
          <!-- needed just for the license-maven-plugin in this module! -->
+@@ -827,7 +827,7 @@
+         <repository>
+             <id>exist-db-snapshots</id>
+             <name>Evolved Binary - eXist-db Snapshots</name>
+-            <url>http://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
++            <url>https://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
+             <releases>
+                 <enabled>false</enabled>
+             </releases>
+@@ -838,7 +838,7 @@
+         <repository>
+             <id>exist-db</id>
+             <name>Evolved Binary - eXist-db Releases</name>
+-            <url>http://repo.evolvedbinary.com/repository/exist-db/</url>
++            <url>https://repo.evolvedbinary.com/repository/exist-db/</url>
+             <releases>
+                 <enabled>true</enabled>
+             </releases>
+@@ -851,12 +851,12 @@
+     <pluginRepositories>
+         <pluginRepository>
+             <id>clojars.org</id>
+-            <url>http://clojars.org/repo</url>
++            <url>https://clojars.org/repo</url>
+         </pluginRepository>
+         <pluginRepository>
+             <id>exist-db</id>
+             <name>Evolved Binary - eXist-db Releases</name>
+-            <url>http://repo.evolvedbinary.com/repository/exist-db/</url>
++            <url>https://repo.evolvedbinary.com/repository/exist-db/</url>
+             <releases>
+                 <enabled>true</enabled>
+             </releases>
+@@ -867,7 +867,7 @@
+         <pluginRepository>
+             <id>exist-db-snapshots</id>
+             <name>Evolved Binary - eXist-db Snapshots</name>
+-            <url>http://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
++            <url>https://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
+             <releases>
+                 <enabled>false</enabled>
+             </releases>
+@@ -881,7 +881,7 @@
+         <snapshotRepository>
+             <id>exist-db-snapshots</id>
+             <name>Evolved Binary - eXist-db Snapshots</name>
+-            <url>http://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
++            <url>https://repo.evolvedbinary.com/repository/exist-db-snapshots/</url>
+         </snapshotRepository>
+         <repository>
+             <id>sonatype-nexus-staging</id>
+diff --git a/extensions/images/pom.xml b/extensions/images/pom.xml
+index c1ce5f8174..f992f1e50c 100644
+--- a/extensions/images/pom.xml
++++ b/extensions/images/pom.xml
+@@ -45,7 +45,7 @@
+     <repositories>
+         <repository>
+             <id>osgeo</id>
+-            <url>http://download.osgeo.org/webdav/geotools/</url>
++            <url>https://download.osgeo.org/webdav/geotools/</url>
+             <releases><enabled>true</enabled></releases>
+             <snapshots><enabled>false</enabled></snapshots>
+         </repository>
+
+diff --git a/extensions/indexes/spatial/pom.xml b/extensions/indexes/spatial/pom.xml
+index ca351ee9ca..cde60d38cc 100644
+--- a/extensions/indexes/spatial/pom.xml
++++ b/extensions/indexes/spatial/pom.xml
+@@ -213,7 +213,7 @@
+     <repositories>
+         <repository>
+             <id>osgeo</id>
+-            <url>http://download.osgeo.org/webdav/geotools/</url>
++            <url>https://download.osgeo.org/webdav/geotools/</url>
+             <releases><enabled>true</enabled></releases>
+             <snapshots><enabled>false</enabled></snapshots>
+         </repository>
+
 -- 
 2.36.1.windows.1
 
