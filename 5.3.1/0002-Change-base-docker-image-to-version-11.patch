@@ -20,12 +20,9 @@ index f9c103e690..bf7ac4922b 100644
  
  # Install tools required by FOP
  WORKDIR /usr/local
-@@ -28,9 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
-   expat \
-   fontconfig \
+@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
    liblcms2-2 \
--  ttf-dejavu-core
-+  fonts-dejavu-core
+   fonts-dejavu-core
  
 -FROM gcr.io/distroless/java:8
 +FROM gcr.io/distroless/java11-debian11
