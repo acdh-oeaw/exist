@@ -1,39 +1,32 @@
-# ${project.description}
-${project.description}
+# docker-eXist
 
-[![Build Status](https://travis-ci.com/eXist-db/exist.png?branch=develop)](https://travis-ci.com/eXist-db/exist)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c5d7a02842dd4a3c85b1b2ad421b0d13)](https://www.codacy.com/app/eXist-db/exist?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=eXist-db/exist&amp;utm_campaign=Badge_Grade)
-[![License](https://img.shields.io/badge/license-AGPL%203.1-orange.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
-[![](https://images.microbadger.com/badges/image/existdb/existdb.svg)](https://microbadger.com/images/existdb/existdb "Get your own image badge on microbadger.com")
-[![](https://images.microbadger.com/badges/version/existdb/existdb.svg)](https://microbadger.com/images/existdb/existdb "Get your own version badge on microbadger.com")
-[![](https://images.microbadger.com/badges/commit/existdb/existdb.svg)](https://microbadger.com/images/existdb/existdb "Get your own commit badge on microbadger.com")
+This is a containerized distribution build the same way as the [official existdb container](https://hub.docker.com/r/acdhch/existdb).
+These are images from the  `master` branch (`release`)
 
-This module holds the source files for building a minimal docker image of the [exist-db](https://www.exist-db.org) xml 
-database, images are automatically updated as part of the build-test life-cycle. 
-The images are based on Google Cloud Platform's ["Distroless" Docker Images](https://github.com/GoogleCloudPlatform/distroless).
+Please note that the [malicious XML-RPC server bug](https://github.com/eXist-db/exist/pull/3934) is not fixed in any 5.x version.
+The description suggests that this bug is mostly relevant when contacting unknown servers via XML-RPC so be cautious there.
 
+# Differences to the official image
 
-## Requirements
-*   [Docker](https://www.docker.com): `18-stable`
-### For building
-*   [maven](https://maven.apache.org/): `^3.6.0`
-*   [java](https://www.java.com/): `8`
-*   [bats](https://github.com/bats-core/bats-core): `^1.1.0` (for testing)
+* The eXist's REST server is hidden (see [Production Use - Good Practice](https://exist-db.org/exist/apps/doc/production_good_practice.xml)).
+* It uses java 11 instead of java 8 and GCs that release memory back to the OS (ShenandoahGC or ZGC).
+* Releases still differ to much so there wont be `releases` or `latest` tag. Specify the exact version you need as a tag.
+
+Sources for
+* [6.0.1-java11-ShenGC](https://github.com/acdh-oeaw/exist/tree/6.0.1-java11-ShenGC)
+* [5.3.1-java11-ShenGC](https://github.com/acdh-oeaw/exist/tree/5.3.1-java11-ShenGC)
+* [5.2.0-java11-ShenGC](https://github.com/acdh-oeaw/exist/tree/5.2.0-java11-ShenGC)
 
 ## How to use
-Pre-build images are available on [DockerHub](https://hub.docker.com/r/existdb/existdb/). 
-There are two continuously updated channels:
-*   `release` for the stable releases based on the [`master` branch](https://github.com/eXist-db/exist/tree/master)
-*   `latest` for the latest commit to the [`develop` branch](https://github.com/eXist-db/exist/tree/develop).
 
 To download the image run:
 ```bash
-docker pull existdb/existdb:latest
+docker pull acdhch/existdb:6.0.1-java11-ShenGC
 ```
 
 Once the download is complete, you can run the image
 ```bash
-docker run -dit -p 8080:8080 -p 8443:8443 --name exist existdb/existdb:latest
+docker run -dit -p 8080:8080 -p 8443:8443 --name exist acdhch/existdb:6.0.1-java11-ShenGC
 ```
 
 ### What does this do?
@@ -43,7 +36,7 @@ docker run -dit -p 8080:8080 -p 8443:8443 --name exist existdb/existdb:latest
 *   `-p` maps the Containers internal and external port assignments (we recommend sticking with matching pairs). This allows you to connect to the eXist-db Web Server running in the Docker container.
 *   `--name` lets you provide a name (instead of using a randomly generated one)
 
-The only required parts are `docker run existdb/existdb`. 
+The only required parts are `docker run acdhch/existdb`. 
 For a full list of available options see the official [Docker documentation](https://docs.docker.com/engine/reference/commandline/run/)
 
 After running the `pull` and `run` commands, you can access eXist-db via [localhost:8080](localhost:8080) in your browser.
@@ -91,7 +84,7 @@ We'll take a quick look at three scenarios of increasing complexity, to demonstr
 The simplest and straightforward case assumes that you have a `.xar` app inside a `build` folder on the same level as the `Dockerfile`. 
 To get an image of an eXist-db instance with your app installed and running, simply adopt the `docker cp ...` command to the appropriate `Dockerfile` syntax.
 ```docker
-FROM existdb/existdb:5.0.0
+FROM acdhch/existdb:6.0.1-java11-ShenGC
 
 COPY build/*.xar /exist/autodeploy
 ```
@@ -100,7 +93,7 @@ You should see something like this:
 
 ```bash
 Sending build context to Docker daemon  4.337MB
-Step 1/2 : FROM existdb/existdb:5.0.0
+Step 1/2 : FROM acdhch/existdb:6.0.1-java11-ShenGC
  ---> 3f4dbbce9afa
 Step 2/2 : COPY build/*.xar /exist/autodeploy
  ---> ace38b0809de
@@ -116,7 +109,7 @@ Instead of a local build directory, we'll download the `.xar` from the web, and 
 To execute any of the `docker exec …` style commands from this readme, we need to use `RUN`.
 
 ```docker
-FROM existdb/existdb
+FROM acdhch/existdb:6.0.1-java11-ShenGC
 
 # NOTE: this is for syntax demo purposes only
 RUN [ "java", "org.exist.start.Main", "client", "--no-gui",  "-l", "-u", "admin", "-P", "", "-x", "sm:passwd('admin','123')" ]
@@ -146,11 +139,11 @@ Such a setup ensures that non of your collaborators has to have `java` or `nodeJ
 
 ```docker
 # START STAGE 1
-FROM openjdk:8-jdk-slim as builder
+FROM openjdk:11-slim-bullseye as builder
 
 USER root
 
-ENV ANT_VERSION 1.10.5
+ENV ANT_VERSION 1.10.12
 ENV ANT_HOME /etc/ant-${ANT_VERSION}
 
 WORKDIR /tmp
@@ -177,7 +170,7 @@ RUN apk add --no-cache --virtual .build-deps \
 
 
 # START STAGE 2
-FROM existdb/existdb:release
+FROM acdhch/existdb:6.0.1-java11-ShenGC
 
 COPY --from=builder /home/my-app/build/*.xar /exist/autodeploy
 
@@ -297,9 +290,10 @@ docker run -m 600m …
 ```
 
 Lastly, this image uses a new garbage collection mechanism 
-[garbage first (G1)](https://docs.oracle.com/javase/9/gctuning/garbage-first-garbage-collector.htm#JSGCT-GUID-ED3AB6D3-FD9B-4447-9EDF-983ED2F7A573) `-XX:+UseG1GC` 
-and [string deduplication](http://openjdk.java.net/jeps/192) `-XX:+UseStringDeduplication` to improve performance.
+[Shenandoah GC](https://wiki.openjdk.java.net/display/shenandoah/Main) `-XX:+UseShenandoahGC`
+and [string deduplication](http://openjdk.java.net/jeps/192) `-XX:+UseStringDeduplication` to improve performance (with Shenandoah).
 
 To disable or further tweak these features edit the relevant parts of the `Dockerfile`, or when running the image. 
 As always when using the latest and greatest, YMMV. 
 Feedback about real world experiences with this features in connection with eXist-db is very much welcome.
+
