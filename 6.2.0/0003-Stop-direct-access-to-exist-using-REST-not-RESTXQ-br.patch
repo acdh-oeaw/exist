@@ -1,0 +1,26 @@
+From 33bd33f8aaecc86366706b3cbc7ad544e1e06c4a Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 22 Jul 2021 19:26:10 +0200
+Subject: [PATCH 3/5] Stop direct access to exist using REST (not RESTXQ,
+ breaks tests, some prepare the environment using this interface)
+
+---
+ exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml b/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
+index 55bb531f5c..cad2acfbf7 100644
+--- a/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
++++ b/exist-jetty-config/src/main/resources/webapp/WEB-INF/web.xml
+@@ -117,7 +117,7 @@
+ 		-->
+         <init-param>
+             <param-name>hidden</param-name>
+-            <param-value>false</param-value>
++            <param-value>true</param-value>
+         </init-param>
+ 
+         <!--
+-- 
+2.39.2.windows.1
+

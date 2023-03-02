@@ -1,0 +1,28 @@
+From 4069c08f3319bfe6024f3ea5ea9b2b28abd716ae Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 22 Jul 2021 19:23:42 +0200
+Subject: [PATCH 1/5] Prepare exist-db for running with java 11.
+
+---
+ exist-docker/pom.xml | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/exist-docker/pom.xml b/exist-docker/pom.xml
+index 2d36c5f029..8eed06bd51 100644
+--- a/exist-docker/pom.xml
++++ b/exist-docker/pom.xml
+@@ -194,6 +194,11 @@
+                                     <resource>META-INF/mailcap.default</resource>
+                                 </transformer>
+                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <manifestEntries>
++                                        <Multi-Release>true</Multi-Release>
++                                    </manifestEntries>
++                                </transformer>
+                             </transformers>
+                         </configuration>
+                     </execution>
+-- 
+2.39.2.windows.1
+
