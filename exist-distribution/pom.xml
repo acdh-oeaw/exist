@@ -28,7 +28,7 @@
     <parent>
         <groupId>org.exist-db</groupId>
         <artifactId>exist-parent</artifactId>
-        <version>6.0.1</version>
+        <version>6.2.0</version>
         <relativePath>../exist-parent</relativePath>
     </parent>
 
@@ -42,11 +42,10 @@
         <connection>scm:git:https://github.com/exist-db/exist.git</connection>
         <developerConnection>scm:git:https://github.com/exist-db/exist.git</developerConnection>
         <url>scm:git:https://github.com/exist-db/exist.git</url>
-      <tag>eXist-6.0.1</tag>
+      <tag>eXist-6.2.0</tag>
   </scm>
 
     <properties>
-        <appassembler.version>2.1.0</appassembler.version>
         <assemble.dir>${project.build.directory}/${project.artifactId}-${project.version}-dir</assemble.dir>
         <public.xar.repo.uri>http://exist-db.org/exist/apps/public-repo</public.xar.repo.uri>
         <expath.pkg.dir>${project.build.directory}/expath-pkgs</expath.pkg.dir>
@@ -1040,7 +1039,7 @@
             <plugin>
                 <groupId>com.evolvedbinary.appbundler</groupId>
                 <artifactId>appbundler-maven-plugin</artifactId>
-                <version>1.0.7</version>
+                <version>2.0.0</version>
                 <executions>
                     <execution>
                         <id>exist-db-mac-app</id>

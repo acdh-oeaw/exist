@@ -65,14 +65,18 @@ public class ModuleContext extends XQueryContext {
 
     public ModuleContext(final XQueryContext parentContext, final String modulePrefix, final String moduleNamespace,
             final String location) {
-        super();
+        super(parentContext != null ? parentContext.db : null,
+                parentContext != null ? parentContext.getConfiguration() : null,
+                null,
+                false);
+
         this.modulePrefix = modulePrefix;
         this.moduleNamespace = moduleNamespace;
         this.location = location;
+
         setParentContext(parentContext);
 
-        loadDefaults(getConfiguration());
-        this.profiler = new Profiler(getBroker() != null ? getBroker().getBrokerPool() : null);
+        loadDefaults(this.configuration);
     }
 
     @Override
@@ -103,7 +107,6 @@ public class ModuleContext extends XQueryContext {
         this.parentContext = parentContext;
         //XXX: raise error on null!
         if (parentContext != null) {
-            this.db = parentContext.db;
             this.baseURI = parentContext.baseURI;
             try {
                 if (location.startsWith(XmldbURI.XMLDB_URI_PREFIX) ||
@@ -184,11 +187,6 @@ public class ModuleContext extends XQueryContext {
     }
 
     @Override
-    public Configuration getConfiguration() {
-        return parentContext.getConfiguration();
-    }
-
-    @Override
     public void addDynamicOption(final String name, final String value) throws XPathException {
         parentContext.addDynamicOption(name, value);
     }
@@ -254,9 +252,9 @@ public class ModuleContext extends XQueryContext {
         }
 
         if (e == null) {
-            return new XPathException(ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation), new StringValue(dependantModule)));
+            return new XPathException(getRootExpression(), ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(getRootExpression(), moduleLocation), new StringValue(getRootExpression(), dependantModule)));
         } else {
-            return new XPathException(ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation), new StringValue(dependantModule)), e);
+            return new XPathException(getRootExpression(), ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(getRootExpression(), moduleLocation), new StringValue(getRootExpression(), dependantModule)), e);
         }
     }
 
@@ -311,7 +309,7 @@ public class ModuleContext extends XQueryContext {
     }
 
     @Override
-    public void popLocalVariables(final LocalVariable var, final Sequence resultSequence) {
+    public void popLocalVariables(final LocalVariable var, @Nullable final Sequence resultSequence) {
         parentContext.popLocalVariables(var, resultSequence);
     }
 
@@ -484,6 +482,11 @@ public class ModuleContext extends XQueryContext {
     @Override
     public void popInScopeNamespaces() {
         parentContext.popInScopeNamespaces();
+    }
+
+    @Override
+    public void addImportedContext(final XQueryContext importedContext) {
+        parentContext.addImportedContext(importedContext);
     }
 
     @Override

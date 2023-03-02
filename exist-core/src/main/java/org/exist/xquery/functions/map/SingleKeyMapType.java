@@ -25,6 +25,7 @@ import com.ibm.icu.text.Collator;
 import io.lacuna.bifurcan.IEntry;
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.Maps;
+import org.exist.xquery.Expression;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQueryContext;
 import org.exist.xquery.value.AtomicValue;
@@ -32,6 +33,7 @@ import org.exist.xquery.value.Sequence;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
+import java.util.function.BinaryOperator;
 
 import static org.exist.xquery.functions.map.MapType.newLinearMap;
 
@@ -43,12 +45,16 @@ import static org.exist.xquery.functions.map.MapType.newLinearMap;
  */
 public class SingleKeyMapType extends AbstractMapType {
 
-    private AtomicValue key;
-    private Sequence value;
-    private @Nullable Collator collator;
+    private final AtomicValue key;
+    private final Sequence value;
+    private final @Nullable Collator collator;
 
     public SingleKeyMapType(final XQueryContext context, final @Nullable Collator collator, final AtomicValue key, final Sequence value) {
-        super(context);
+        this(null, context, collator, key, value);
+    }
+
+    public SingleKeyMapType(final Expression expression, final XQueryContext context, final @Nullable Collator collator, final AtomicValue key, final Sequence value) {
+        super(expression, context);
         this.key = key;
         this.value = value;
         this.collator = collator;
@@ -69,8 +75,16 @@ public class SingleKeyMapType extends AbstractMapType {
 
     @Override
     public AbstractMapType merge(final Iterable<AbstractMapType> others) {
-        final MapType map = new MapType(context, collator, key, value);
-        return map.merge(others);
+        try (final MapType map = new MapType(getExpression(), context, collator, key, value)) {
+            return map.merge(others);
+        }
+    }
+
+    @Override
+    public AbstractMapType merge(final Iterable<AbstractMapType> others, final BinaryOperator<Sequence> mergeFn) {
+        try (final MapType map = new MapType(context, collator, key, value)) {
+            return map.merge(others, mergeFn);
+        }
     }
 
     @Override
@@ -86,7 +100,7 @@ public class SingleKeyMapType extends AbstractMapType {
             keyType = MIXED_KEY_TYPES;
         }
 
-        return new MapType(context, map.forked(), keyType);
+        return new MapType(getExpression(), context, map.forked(), keyType);
     }
 
     @Override
@@ -109,12 +123,12 @@ public class SingleKeyMapType extends AbstractMapType {
         for (final AtomicValue key: keysAtomicValues) {
             if (keysEqual(collator, key, this.key)) {
                 // single key map, and we matched on our key... return an empty map!
-                return new MapType(context);
+                return new MapType(getExpression(), context);
             }
         }
 
         // nothing to remove, return a copy
-        return new SingleKeyMapType(context, collator, key, value);
+        return new SingleKeyMapType(getExpression(), context, collator, key, value);
     }
 
     @Override

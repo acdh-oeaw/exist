@@ -29,6 +29,7 @@ import org.exist.dom.persistent.NodeSet;
 import org.exist.numbering.NodeId;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.Cardinality;
+import org.exist.xquery.Expression;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQueryContext;
 
@@ -333,22 +334,52 @@ public interface Sequence {
     boolean hasChanged(int previousState);
 
     /**
+     * Returns true if the sequence contains the item.
+     *
+     * NOTE that comparison is done via reference equality.
+     *
+     * @param item the item for which to search
+     * @return true if the item is within the sequence, false otherwise.
+     */
+    boolean containsReference(Item item);
+
+    /**
+     * Returns true if the sequence contains the item.
+     *
+     * NOTE that comparison is done via object equality.
+     *
+     * @param item the item to look for in the sequence.
+     *
+     * @return true if the item is within the sequence, false otherwise.
+     */
+    boolean contains(Item item);
+
+    /**
      * Clean up any resources used by the items in this sequence.
      *
      * @param context the XQuery context
      * @param contextSequence the context sequence
      */
-    void destroy(XQueryContext context, Sequence contextSequence);
+    void destroy(final XQueryContext context, @Nullable final Sequence contextSequence);
 
-    static Sequence of(final XmldbURI... uris) throws XPathException {
-        return ValueSequence.of(FunctionE.<XmldbURI, Item, XPathException>lift(thing -> new StringValue(thing.toString())), uris);
+    static Sequence of(@Nullable final XmldbURI... uris) throws XPathException {
+        final FunctionE liftedMapper = FunctionE.<XmldbURI, Item, XPathException>lift(
+                thing -> new StringValue(thing.toString()));
+        return of(liftedMapper, uris);
     }
 
-    static Sequence of(final int... ints) throws XPathException {
-        return ValueSequence.of(thing -> new IntegerValue(thing.toString(), Type.INT), ints);
+    static Sequence of(@Nullable final Integer... ints) throws XPathException {
+        return of(thing -> new IntegerValue(thing, Type.INT), ints);
     }
 
-    static Sequence of(final BigInteger... bigIntegers) throws XPathException {
-        return ValueSequence.of(thing -> new IntegerValue(thing.toString(), Type.INTEGER), bigIntegers);
+    static Sequence of(@Nullable final BigInteger... bigIntegers) throws XPathException {
+        return of(thing -> new IntegerValue(thing.toString(), Type.INTEGER), bigIntegers);
+    }
+
+    static <T> Sequence of(final FunctionE<T, Item, XPathException> mapper, @Nullable final T... things) throws XPathException {
+        if (things == null || things.length == 0 || (things.length == 1 && things[0] == null)) {
+            return Sequence.EMPTY_SEQUENCE;
+        }
+        return ValueSequence.of(mapper, things);
     }
 }

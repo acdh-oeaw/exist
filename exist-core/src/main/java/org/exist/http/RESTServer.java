@@ -101,6 +101,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 
 import static java.lang.invoke.MethodType.methodType;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.exist.http.RESTServerParameter.*;
 
 /**
@@ -119,7 +120,7 @@ public class RESTServer {
 
     static {
         defaultProperties.setProperty(OutputKeys.INDENT, "yes");
-        defaultProperties.setProperty(OutputKeys.ENCODING, "UTF-8");
+        defaultProperties.setProperty(OutputKeys.ENCODING, UTF_8.name());
         defaultProperties.setProperty(OutputKeys.MEDIA_TYPE, MimeType.XML_TYPE.getName());
         defaultProperties.setProperty(EXistOutputKeys.EXPAND_XINCLUDES, "yes");
         defaultProperties.setProperty(EXistOutputKeys.HIGHLIGHT_MATCHES, "elements");
@@ -129,7 +130,7 @@ public class RESTServer {
 
     static {
         defaultOutputKeysProperties.setProperty(OutputKeys.INDENT, "yes");
-        defaultOutputKeysProperties.setProperty(OutputKeys.ENCODING, "UTF-8");
+        defaultOutputKeysProperties.setProperty(OutputKeys.ENCODING, UTF_8.name());
         defaultOutputKeysProperties.setProperty(OutputKeys.MEDIA_TYPE,
                 MimeType.XML_TYPE.getName());
     }
@@ -249,6 +250,9 @@ public class RESTServer {
      *
      * <li>_xsl: an URI pointing to an XSL stylesheet that will be applied to
      * the returned XML.</li>
+     *
+     * <li>_output-doctype: if set to "yes", the returned XML will include
+     * a Document Type Declaration if one is present, if "no" the Document Type Declaration will be omitted.</li>
      * </ul>
      *
      * @param broker the database broker
@@ -310,8 +314,8 @@ public class RESTServer {
                 namespaces = nsExtractor.getNamespaces();
             }
         } catch (final SAXException e) {
-            final XPathException x = new XPathException(e.toString());
-            writeXPathException(response, HttpServletResponse.SC_BAD_REQUEST, "UTF-8", query, path, x);
+            final XPathException x = new XPathException(variables != null ? variables.getExpression() : null, e.toString());
+            writeXPathException(response, HttpServletResponse.SC_BAD_REQUEST, UTF_8.name(), query, path, x);
         }
 
         if ((option = getParameter(request, HowMany)) != null) {
@@ -345,6 +349,14 @@ public class RESTServer {
         if ((option = getParameter(request, Indent)) != null) {
             outputProperties.setProperty(OutputKeys.INDENT, option);
         }
+        if ((option = getParameter(request, Output_Doctype)) != null) {
+            // take user query-string specified output-doctype setting
+            outputProperties.setProperty(EXistOutputKeys.OUTPUT_DOCTYPE, option);
+        } else {
+            // set output-doctype by configuration
+            final String outputDocType = broker.getConfiguration().getProperty(Serializer.PROPERTY_OUTPUT_DOCTYPE, "yes");
+            outputProperties.setProperty(EXistOutputKeys.OUTPUT_DOCTYPE, outputDocType);
+        }
         if ((option = getParameter(request, Source)) != null && !safeMode) {
             source = "yes".equals(option);
         }
@@ -369,7 +381,7 @@ public class RESTServer {
         if ((encoding = getParameter(request, Encoding)) != null) {
             outputProperties.setProperty(OutputKeys.ENCODING, encoding);
         } else {
-            encoding = "UTF-8";
+            encoding = UTF_8.name();
         }
 
         final String mimeType = outputProperties.getProperty(OutputKeys.MEDIA_TYPE);
@@ -392,7 +404,7 @@ public class RESTServer {
         // Process the request
         LockedDocument lockedDocument = null;
         DocumentImpl resource = null;
-        final XmldbURI pathUri = XmldbURI.createInternal(path);
+        final XmldbURI pathUri = XmldbURI.create(path);
         try {
             // check if path leads to an XQuery resource
             final String xquery_mime_type = MimeType.XQUERY_TYPE.getName();
@@ -420,9 +432,9 @@ public class RESTServer {
                             return;
                         } catch (final LockException le) {
                             if (MimeType.XML_TYPE.getName().equals(mimeType)) {
-                                writeXPathException(response, HttpServletResponse.SC_BAD_REQUEST, encoding, query, path, new XPathException(le.getMessage(), le));
+                                writeXPathException(response, HttpServletResponse.SC_BAD_REQUEST, encoding, query, path, new XPathException((Expression) null, le.getMessage(), le));
                             } else {
-                                writeXPathExceptionHtml(response, HttpServletResponse.SC_BAD_REQUEST, encoding, query, path, new XPathException(le.getMessage(), le));
+                                writeXPathExceptionHtml(response, HttpServletResponse.SC_BAD_REQUEST, encoding, query, path, new XPathException((Expression) null, le.getMessage(), le));
                             }
                         }
 
@@ -544,7 +556,7 @@ public class RESTServer {
             throws BadRequestException, PermissionDeniedException,
             NotFoundException, IOException {
 
-        final XmldbURI pathUri = XmldbURI.createInternal(path);
+        final XmldbURI pathUri = XmldbURI.create(path);
         if (checkForXQueryTarget(broker, transaction, pathUri, request, response)) {
             return;
         }
@@ -555,7 +567,7 @@ public class RESTServer {
         if ((encoding = getParameter(request, Encoding)) != null) {
             outputProperties.setProperty(OutputKeys.ENCODING, encoding);
         } else {
-            encoding = "UTF-8";
+            encoding = UTF_8.name();
         }
 
         try(final LockedDocument lockedDocument = broker.getXMLResource(pathUri, LockMode.READ_LOCK)) {
@@ -622,7 +634,7 @@ public class RESTServer {
         }
 
         final Properties outputProperties = new Properties(defaultOutputKeysProperties);
-        final XmldbURI pathUri = XmldbURI.createInternal(path);
+        final XmldbURI pathUri = XmldbURI.create(path);
         LockedDocument lockedDocument = null;
         DocumentImpl resource = null;
 
@@ -951,7 +963,7 @@ public class RESTServer {
         XMLReader reader = null;
         try {
             reader = parserPool.borrowXMLReader();
-            final SAXAdapter adapter = new SAXAdapter();
+            final SAXAdapter adapter = new SAXAdapter((Expression) null);
             nsExtractor.setContentHandler(adapter);
             reader.setProperty(Namespaces.SAX_LEXICAL_HANDLER, adapter);
             nsExtractor.setParent(reader);
@@ -1133,7 +1145,7 @@ public class RESTServer {
 
     public void doDelete(final DBBroker broker, final Txn transaction, final String path, final HttpServletRequest request, final HttpServletResponse response)
             throws PermissionDeniedException, NotFoundException, IOException, BadRequestException {
-        final XmldbURI pathURI = XmldbURI.createInternal(path);
+        final XmldbURI pathURI = XmldbURI.create(path);
         if (checkForXQueryTarget(broker, transaction, pathURI, request, response)) {
             return;
         }
@@ -1232,7 +1244,7 @@ public class RESTServer {
             executeXQuery(broker, transaction, resource, request, response,
                     outputProperties, servletPath.toString(), pathInfo);
         } catch (final XPathException e) {
-            writeXPathExceptionHtml(response, HttpServletResponse.SC_BAD_REQUEST, "UTF-8", null, path.toString(), e);
+            writeXPathExceptionHtml(response, HttpServletResponse.SC_BAD_REQUEST, UTF_8.name(), null, path.toString(), e);
         } finally {
             lockedDocument.close();
         }
@@ -1243,7 +1255,7 @@ public class RESTServer {
 
         String encoding = request.getCharacterEncoding();
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = UTF_8.name();
         }
 
         final InputStream is = request.getInputStream();
@@ -1321,7 +1333,7 @@ public class RESTServer {
             }
         }
 
-        final XmldbURI pathUri = XmldbURI.createInternal(path);
+        final XmldbURI pathUri = XmldbURI.create(path);
         final Source source = new StringSource(query);
         final XQueryPool pool = broker.getBrokerPool().getXQueryPool();
         CompiledXQuery compiled = null;
@@ -1482,7 +1494,7 @@ public class RESTServer {
             try {
                 sequence = value == null ? Sequence.EMPTY_SEQUENCE : Marshaller.demarshall(value);
             } catch (final XMLStreamException xe) {
-                throw new XPathException(xe.toString());
+                throw new XPathException((Expression) null, xe.toString());
             }
 
             // now declare variable
@@ -1767,7 +1779,6 @@ public class RESTServer {
                     serializer.setStylesheet(resource, stylesheet);
                 }
                 serializer.setProperties(outputProperties);
-                serializer.prepareStylesheets(resource);
 
                 if (asMimeType != null) { // was a mime-type specified?
                     response.setContentType(asMimeType + "; charset=" + encoding);
@@ -2033,7 +2044,7 @@ public class RESTServer {
                     // add an attribute for the last modified date as an
                     // xs:dateTime
                     try {
-                        final DateTimeValue dtLastModified = new DateTimeValue(
+                        final DateTimeValue dtLastModified = new DateTimeValue(null,
                                 new Date(doc.getLastModified()));
                         attrs.addAttribute("", "last-modified",
                                 "last-modified", "CDATA", dtLastModified.getStringValue());

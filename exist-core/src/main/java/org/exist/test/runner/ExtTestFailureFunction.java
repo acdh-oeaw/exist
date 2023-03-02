@@ -23,7 +23,6 @@
 package org.exist.test.runner;
 
 import org.exist.util.serializer.XQuerySerializer;
-import org.exist.xquery.Annotation;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQueryContext;
 import org.exist.xquery.functions.map.MapType;
@@ -67,7 +66,7 @@ public class ExtTestFailureFunction extends JUnitIntegrationFunction {
         final Sequence arg3 = getCurrentArguments()[2];
         final MapType actual = (MapType)arg3.itemAt(0);
 
-        final Description description = Description.createTestDescription(suiteName, name, new Annotation[0]);
+        final Description description = createTestDescription(name);
 
         // notify JUnit
         try {
@@ -86,17 +85,17 @@ public class ExtTestFailureFunction extends JUnitIntegrationFunction {
     }
 
     private String expectedToString(final MapType expected) throws XPathException, SAXException, IOException {
-        final Sequence seqExpectedValue = expected.get(new StringValue("value"));
+        final Sequence seqExpectedValue = expected.get(new StringValue(this, "value"));
         if(!seqExpectedValue.isEmpty()) {
             return seqToString(seqExpectedValue);
         }
 
-        final Sequence seqExpectedXPath = expected.get(new StringValue("xpath"));
+        final Sequence seqExpectedXPath = expected.get(new StringValue(this, "xpath"));
         if(!seqExpectedXPath.isEmpty()) {
             return "XPath: " + seqToString(seqExpectedXPath);
         }
 
-        final Sequence seqExpectedError = expected.get(new StringValue("error"));
+        final Sequence seqExpectedError = expected.get(new StringValue(this, "error"));
         if(!seqExpectedError.isEmpty()) {
             return "Error: " + seqToString(seqExpectedError);
         }
@@ -105,12 +104,12 @@ public class ExtTestFailureFunction extends JUnitIntegrationFunction {
     }
 
     private String actualToString(final MapType actual) throws XPathException, SAXException, IOException {
-        final Sequence seqActualError = actual.get(new StringValue("error"));
+        final Sequence seqActualError = actual.get(new StringValue(this, "error"));
         if (!seqActualError.isEmpty()) {
             return errorMapToString(seqActualError);
         }
 
-        final Sequence seqActualResult = actual.get(new StringValue("result"));
+        final Sequence seqActualResult = actual.get(new StringValue(this, "result"));
         if (!seqActualResult.isEmpty()) {
             return seqToString(seqActualResult);
         } else {

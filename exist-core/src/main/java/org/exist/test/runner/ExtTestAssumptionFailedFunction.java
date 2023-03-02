@@ -22,7 +22,6 @@
 
 package org.exist.test.runner;
 
-import org.exist.xquery.Annotation;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQueryContext;
 import org.exist.xquery.functions.map.MapType;
@@ -56,7 +55,7 @@ public class ExtTestAssumptionFailedFunction extends JUnitIntegrationFunction {
         final Sequence arg2 = getCurrentArguments().length == 2 ? getCurrentArguments()[1] : null;
         final MapType assumption = arg2 != null ? (MapType)arg2.itemAt(0) : null;
 
-        final Description description = Description.createTestDescription(suiteName, name, new Annotation[0]);
+        final Description description = createTestDescription(name);
 
         // notify JUnit
         try {
@@ -75,7 +74,7 @@ public class ExtTestAssumptionFailedFunction extends JUnitIntegrationFunction {
     }
 
     public AssumptionViolatedException assumptionMapAsAssumptionViolationException(final MapType assumptionMap) throws XPathException {
-        final Sequence seqName = assumptionMap.get(new StringValue("name"));
+        final Sequence seqName = assumptionMap.get(new StringValue(this, "name"));
         final String name;
         if(seqName != null && !seqName.isEmpty()) {
             name = seqName.itemAt(0).getStringValue();
@@ -83,7 +82,7 @@ public class ExtTestAssumptionFailedFunction extends JUnitIntegrationFunction {
             name = "";
         }
 
-        final Sequence seqValue = assumptionMap.get(new StringValue("value"));
+        final Sequence seqValue = assumptionMap.get(new StringValue(this, "value"));
         final String value;
         if(seqValue != null && !seqValue.isEmpty()) {
             value = seqValue.itemAt(0).getStringValue();

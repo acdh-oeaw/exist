@@ -41,7 +41,6 @@ import org.exist.xquery.value.Sequence;
 import org.junit.runner.Runner;
 
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -57,7 +56,6 @@ import static java.util.Objects.requireNonNull;
  * @author Adam Retter
  */
 public abstract class AbstractTestRunner extends Runner {
-    protected static final Annotation[] EMPTY_ANNOTATIONS = new Annotation[0];
 
     protected final Path path;
     protected final boolean parallel;
@@ -73,8 +71,8 @@ public abstract class AbstractTestRunner extends Runner {
             final XQueryPool queryPool = brokerPool.getXQueryPool();
             CompiledXQuery compiledQuery = queryPool.borrowCompiledXQuery(broker, query);
 
+            XQueryContext context = null;
             try {
-                XQueryContext context;
                 if (compiledQuery == null) {
                     context = new XQueryContext(broker.getBrokerPool());
                 } else {
@@ -112,6 +110,10 @@ public abstract class AbstractTestRunner extends Runner {
                 return xqueryService.execute(broker, compiledQuery, null);
 
             } finally {
+                if (context != null) {
+                    context.runCleanupTasks();
+                }
+
                 queryPool.returnCompiledXQuery(query, compiledQuery);
             }
         }

@@ -62,7 +62,7 @@ public class BuiltinFunctions extends BasicFunction {
 					new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE, "the sequence of function names")),
 			new FunctionSignature(
 					new QName("declared-variables", UtilModule.NAMESPACE_URI, UtilModule.PREFIX),
-					"Returns a sequence containing the QNames of all functions " +
+					"Returns a sequence containing the QNames of all variables " +
 							"declared in the module identified by the specified namespace URI. " +
 							"An error is raised if no module is found for the specified URI.",
 					new SequenceType[] { new FunctionParameterSequenceType("namespace-uri", Type.STRING, Cardinality.EXACTLY_ONE, "The namespace URI of the function module") },
@@ -129,7 +129,7 @@ public class BuiltinFunctions extends BasicFunction {
 				for (final Iterator<UserDefinedFunction> i = context.localFunctions(); i.hasNext(); ) {
 					final UserDefinedFunction func = i.next();
 					final FunctionSignature sig = func.getSignature();
-					resultSeq.add(new QNameValue(context, sig.getName()));
+					resultSeq.add(new QNameValue(this, context, sig.getName()));
 				}
 			}
 		}
@@ -146,7 +146,7 @@ public class BuiltinFunctions extends BasicFunction {
 				set.add(qname);
 			}
 			for (final QName qname : set) {
-				resultSeq.add(new QNameValue(context, qname));
+				resultSeq.add(new QNameValue(this, context, qname));
 			}
 		}
 	}
@@ -157,7 +157,7 @@ public class BuiltinFunctions extends BasicFunction {
 			for (final FunctionSignature signature : signatures) {
 				final FunctionCall call = FunOnFunctions.lookupFunction(this, signature.getName(), signature.getArgumentCount());
 				if (call != null) {
-					resultSeq.add(new FunctionReference(call));
+					resultSeq.add(new FunctionReference(this, call));
 				}
 			}
 		}
@@ -169,7 +169,7 @@ public class BuiltinFunctions extends BasicFunction {
 			final FunctionCall call =
 					FunOnFunctions.lookupFunction(this, f.getSignature().getName(), f.getSignature().getArgumentCount());
 			if (call != null) {
-				resultSeq.add(new FunctionReference(call));
+				resultSeq.add(new FunctionReference(this, call));
 			}
 		}
 	}
@@ -177,7 +177,7 @@ public class BuiltinFunctions extends BasicFunction {
 	private void addVariablesFromModules(final ValueSequence resultSeq, final Module[] modules) {
 		for (final Module module : modules) {
 			for (final Iterator<QName> i = module.getGlobalVariables(); i.hasNext(); ) {
-				resultSeq.add(new QNameValue(context, i.next()));
+				resultSeq.add(new QNameValue(this, context, i.next()));
 			}
 		}
 	}

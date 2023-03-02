@@ -28,7 +28,7 @@
     <parent>
         <groupId>org.exist-db</groupId>
         <artifactId>exist-parent</artifactId>
-        <version>6.0.1</version>
+        <version>6.2.0</version>
         <relativePath>../exist-parent</relativePath>
     </parent>
 
@@ -42,7 +42,7 @@
         <connection>scm:git:https://github.com/exist-db/exist.git</connection>
         <developerConnection>scm:git:https://github.com/exist-db/exist.git</developerConnection>
         <url>scm:git:https://github.com/exist-db/exist.git</url>
-      <tag>eXist-6.0.1</tag>
+      <tag>eXist-6.2.0</tag>
   </scm>
 
     <dependencies>
@@ -59,7 +59,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.13.1</version>
+            <version>2.13.4</version>
         </dependency>
 
         <!-- dependency>
@@ -94,7 +94,7 @@
             <groupId>com.siemens.ct.exi</groupId>
             <artifactId>exificient</artifactId>
             <exclusions>
-                <exclusion> <!-- conflicts with xerces 2.12.0 -->
+                <exclusion> <!-- conflicts with xerces 2.12.2 -->
                     <groupId>xerces</groupId>
                     <artifactId>xercesImpl</artifactId>
                 </exclusion>
@@ -114,9 +114,9 @@
         <dependency>
             <groupId>org.relaxng</groupId>
             <artifactId>jing</artifactId>
-            <version>20181222</version>
+            <version>20220510</version>
             <exclusions>
-                <exclusion> <!-- conflicts with xerces 2.12.0 dependency on xml-apis version 1.4.01 -->
+                <exclusion> <!-- conflicts with xerces 2.12.2 dependency on xml-apis version 1.4.01 -->
                     <groupId>xml-apis</groupId>
                     <artifactId>xml-apis</artifactId>
                 </exclusion>
@@ -162,7 +162,7 @@
         <dependency>
             <groupId>com.fasterxml.uuid</groupId>
             <artifactId>java-uuid-generator</artifactId>
-            <version>4.0.1</version>
+            <version>4.1.0</version>
         </dependency>
 
         <dependency>
@@ -191,7 +191,7 @@
         <dependency>
             <groupId>org.jline</groupId>
             <artifactId>jline</artifactId>
-            <version>3.21.0</version>
+            <version>3.22.0</version>
         </dependency>
 
         <dependency>
@@ -263,14 +263,14 @@
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
+            <artifactId>log4j-slf4j2-impl</artifactId>
             <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>org.exist-db.thirdparty.xerces</groupId>
             <artifactId>xercesImpl</artifactId>
-            <version>2.12.1</version>
+            <version>2.12.2</version>
             <classifier>xml-schema-1.1</classifier>
         </dependency>
 
@@ -280,7 +280,7 @@
             <version>1.9.22</version>
             <scope>runtime</scope>  <!-- default for util:parse-html -->
             <exclusions>
-                <exclusion>  <!-- conflicts with eXist-db's xercesImpl 2.12.0 dependency -->
+                <exclusion>  <!-- conflicts with eXist-db's xercesImpl 2.12.2 dependency -->
                     <groupId>xerces</groupId>
                     <artifactId>xercesImpl</artifactId>
                 </exclusion>
@@ -303,6 +303,20 @@
             <groupId>xml-resolver</groupId>
             <artifactId>xml-resolver</artifactId>
             <version>1.2</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.xmlresolver</groupId>
+            <artifactId>xmlresolver</artifactId>
+            <version>${xmlresolver.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.xmlresolver</groupId>
+            <artifactId>xmlresolver</artifactId>
+            <version>${xmlresolver.version}</version>
+            <classifier>data</classifier>
             <scope>runtime</scope>
         </dependency>
 
@@ -377,6 +391,13 @@
             <artifactId>jetty-jaas</artifactId>
             <version>${jetty.version}</version>
             <scope>runtime</scope>
+            <exclusions>
+                <exclusion>
+                    <!-- conflicts with antlr 2.7.7 -->
+                    <groupId>org.apache.servicemix.bundles</groupId>
+                    <artifactId>org.apache.servicemix.bundles.antlr</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
@@ -405,7 +426,7 @@
         <dependency>
             <groupId>com.fifesoft</groupId>
             <artifactId>rsyntaxtextarea</artifactId>
-            <version>3.1.6</version>
+            <version>3.3.2</version>
         </dependency>
 
         <dependency>
@@ -481,11 +502,6 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.vintage</groupId>
-            <artifactId>junit-vintage-engine</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -629,10 +645,13 @@
                                 <exclude>src/test/resources/**/*.xar</exclude>
                                 <exclude>src/test/resources/**/*.bin</exclude>
                                 <exclude>src/test/resources/org/exist/validation/entities/**</exclude>
+                                <exclude>src/test/resources/org/exist/xmldb/allowAnyUri.xml</exclude>
 
                                 <!--
                                     Already under LGPL 2.1, but with a different Copyright
                                 -->
+                                <exclude>src/main/java/org/exist/resolver/ResolverFactory.java</exclude>
+                                <exclude>src/main/java/org/exist/resolver/XercesXmlResolverAdapter.java</exclude>
                                 <exclude>src/main/java/org/exist/util/UTF8.java</exclude>
                                 <exclude>src/test/java/org/exist/storage/MoveCollectionTest.java</exclude>
                                 <exclude>src/main/java/org/exist/storage/blob/**</exclude>
@@ -681,6 +700,7 @@
                                 <exclude>src/main/java/org/exist/util/CollectionOfArrayIterator.java</exclude>
                                 <exclude>src/test/java/org/exist/util/CollectionOfArrayIteratorTest.java</exclude>
                                 <exclude>src/main/java/org/exist/util/IPUtil.java</exclude>
+                                <exclude>src/main/java/org/exist/util/MapUtil.java</exclude>
                                 <exclude>src/main/java/org/exist/xmlrpc/ACEAiderParser.java</exclude>
                                 <exclude>src/main/java/org/exist/xmlrpc/ACEAiderSerializer.java</exclude>
                                 <exclude>src/main/java/org/exist/xquery/Cardinality.java</exclude>
@@ -692,6 +712,7 @@
                                 <exclude>src/test/java/org/exist/xquery/functions/session/AttributeTest.java</exclude>
                                 <exclude>src/test/java/org/exist/xquery/functions/xmldb/XMLDBAuthenticateTest.java</exclude>
                                 <exclude>src/main/java/org/exist/xquery/functions/util/Eval.java</exclude>
+                                <exclude>src/test/java/org/exist/xquery/util/URIUtilsTest.java</exclude>
                                 <exclude>src/main/java/org/exist/xquery/value/ArrayListValueSequence.java</exclude>
                                 <exclude>src/test/java/org/exist/xquery/value/BifurcanMapTest.java</exclude>
                                 <exclude>src/main/java/org/exist/xquery/value/AtomicValueComparator.java</exclude>
@@ -700,6 +721,7 @@
                                 <exclude>src/main/java/org/exist/xquery/value/SubSequence.java</exclude>
                                 <exclude>src/test/java/org/exist/xquery/value/SubSequenceRangeTest.java</exclude>
                                 <exclude>src/test/java/org/exist/xquery/value/SubSequenceTest.java</exclude>
+                                <exclude>src/test/xquery/binary-value.xqm</exclude>
 
                                 <!--
                                     Derivative work licensed under dbXML 1.0 and LGPL 2.1
@@ -779,6 +801,8 @@ The original license statement is also included below.]]></preamble>
                             -->
                             <header>${project.parent.relativePath}/FDB-backport-LGPL-21-ONLY-license.template.txt</header>
                             <includes>
+                                <include>src/main/java/org/exist/resolver/ResolverFactory.java</include>
+                                <include>src/main/java/org/exist/resolver/XercesXmlResolverAdapter.java</include>
                                 <include>src/test/java/org/exist/storage/MoveCollectionTest.java</include>
                                 <include>src/main/java/org/exist/storage/blob/**</include>
                                 <include>src/test/java/org/exist/storage/blob/**</include>
@@ -826,6 +850,7 @@ The original license statement is also included below.]]></preamble>
                                 <include>src/main/java/org/exist/util/CollectionOfArrayIterator.java</include>
                                 <include>src/test/java/org/exist/util/CollectionOfArrayIteratorTest.java</include>
                                 <include>src/main/java/org/exist/util/IPUtil.java</include>
+                                <include>src/main/java/org/exist/util/MapUtil.java</include>
                                 <include>src/main/java/org/exist/xmlrpc/ACEAiderParser.java</include>
                                 <include>src/main/java/org/exist/xmlrpc/ACEAiderSerializer.java</include>
                                 <include>src/main/java/org/exist/xquery/Cardinality.java</include>
@@ -837,6 +862,7 @@ The original license statement is also included below.]]></preamble>
                                 <include>src/test/java/org/exist/xquery/functions/session/AttributeTest.java</include>
                                 <include>src/test/java/org/exist/xquery/functions/xmldb/XMLDBAuthenticateTest.java</include>
                                 <include>src/main/java/org/exist/xquery/functions/util/Eval.java</include>
+                                <include>src/test/java/org/exist/xquery/util/URIUtilsTest.java</include>
                                 <include>src/main/java/org/exist/xquery/value/ArrayListValueSequence.java</include>
                                 <include>src/test/java/org/exist/xquery/value/BifurcanMapTest.java</include>
                                 <include>src/main/java/org/exist/xquery/value/AtomicValueComparator.java</include>
@@ -845,6 +871,7 @@ The original license statement is also included below.]]></preamble>
                                 <include>src/main/java/org/exist/xquery/value/SubSequence.java</include>
                                 <include>src/test/java/org/exist/xquery/value/SubSequenceRangeTest.java</include>
                                 <include>src/test/java/org/exist/xquery/value/SubSequenceTest.java</include>
+                                <include>src/test/xquery/binary-value.xqm</include>
                             </includes>
 
                         </licenseSet>
@@ -905,12 +932,13 @@ The BaseX Team. The original license statement is also included below.]]></pream
                             <ignoredUnusedDeclaredDependencies>
                                 <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-core:jar:${log4j.version}</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-jcl:jar:${log4j.version}</ignoredUnusedDeclaredDependency>
-                                <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-slf4j-impl:jar:${log4j.version}</ignoredUnusedDeclaredDependency>
+                                <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-slf4j2-impl:jar:${log4j.version}</ignoredUnusedDeclaredDependency>
 
                                 <ignoredUnusedDeclaredDependency>org.glassfish.jaxb:jaxb-runtime:jar:${jaxb.impl.version}</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.fusesource.jansi:jansi:jar:2.4.0</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>net.sourceforge.nekohtml:nekohtml:jar:1.9.22</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>xml-resolver:xml-resolver:jar:1.2</ignoredUnusedDeclaredDependency>
+                                <ignoredUnusedDeclaredDependency>org.xmlresolver:xmlresolver:jar:${xmlresolver.version}</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.exist-db.thirdparty.org.eclipse.wst.xml:xpath2:jar:1.2.0</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>edu.princeton.cup:java-cup:jar:10k</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.eclipse.jetty:jetty-jaas:jar:${jetty.version}</ignoredUnusedDeclaredDependency>
@@ -918,8 +946,6 @@ The BaseX Team. The original license statement is also included below.]]></pream
                                 <ignoredUnusedDeclaredDependency>org.eclipse.jetty:jetty-jmx:jar:${jetty.version}</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.eclipse.jetty:jetty-annotations:jar:${jetty.version}</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>${project.groupId}:exist-jetty-config:jar:${project.version}</ignoredUnusedDeclaredDependency>
-
-                                <ignoredUnusedDeclaredDependency>org.junit.vintage:junit-vintage-engine:jar:${junit.vintage.version}</ignoredUnusedDeclaredDependency>
                             </ignoredUnusedDeclaredDependencies>
                         </configuration>
                     </execution>
@@ -1036,6 +1062,11 @@ The BaseX Team. The original license statement is also included below.]]></pream
                         <artifactId>junit-vintage-engine</artifactId>
                         <version>${junit.vintage.version}</version>
                     </dependency>
+                    <dependency>
+                        <groupId>org.objenesis</groupId>
+                        <artifactId>objenesis</artifactId>
+                        <version>${objenesis.version}</version>
+                    </dependency>
                 </dependencies>
                 <configuration>
                     <argLine>@{jacocoArgLine} -Dfile.encoding=${project.build.sourceEncoding}</argLine>
@@ -1103,6 +1134,11 @@ The BaseX Team. The original license statement is also included below.]]></pream
                                 <groupId>org.junit.vintage</groupId>
                                 <artifactId>junit-vintage-engine</artifactId>
                                 <version>${junit.vintage.version}</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.objenesis</groupId>
+                                <artifactId>objenesis</artifactId>
+                                <version>${objenesis.version}</version>
                             </dependency>
                         </dependencies>
                         <configuration>

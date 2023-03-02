@@ -134,6 +134,8 @@ public class ErrorCodes {
     public static final ErrorCode XQDY0137 = new W3CErrorCode("XQDY0137", "No two keys in a map may have the same key value");
     public static final ErrorCode XQDY0138 = new W3CErrorCode("XQDY0138", "Position n does not exist in this array");
 
+    public static final ErrorCode XUDY0023 = new W3CErrorCode("XUDY0023", "It is a dynamic error if an insert, replace, or rename expression affects an element node by introducing a new namespace binding that conflicts with one of its existing namespace bindings.");
+
     /* XQuery 1.0 and XPath 2.0 Functions and Operators http://www.w3.org/TR/xpath-functions/#error-summary */
     public static final ErrorCode FOER0000 = new W3CErrorCode("FOER0000", "Unidentified error.");
     public static final ErrorCode FOAR0001 = new W3CErrorCode("FOAR0001", "Division by zero.");
@@ -150,7 +152,7 @@ public class ErrorCodes {
     public static final ErrorCode FODC0001 = new W3CErrorCode("FODC0001", "No context document.");
     public static final ErrorCode FODC0002 = new W3CErrorCode("FODC0002", "Error retrieving resource.");
     public static final ErrorCode FODC0003 = new W3CErrorCode("FODC0003", "Function stability not defined.");
-    public static final ErrorCode FODC0004 = new W3CErrorCode("FODC0004", "Invalid argument to fn:collection.");
+    public static final ErrorCode FODC0004 = new W3CErrorCode("FODC0004", "Invalid argument to fn:collection or fn:uri-collection.");
     public static final ErrorCode FODC0005 = new W3CErrorCode("FODC0005", "Invalid argument to fn:doc or fn:doc-available.");
     public static final ErrorCode FODT0001 = new W3CErrorCode("FODT0001", "Overflow/underflow in date/time operation.");
     public static final ErrorCode FODT0002 = new W3CErrorCode("FODT0002", "Overflow/underflow in duration operation.");
@@ -189,6 +191,8 @@ public class ErrorCodes {
     public static final ErrorCode SERE0014 = new W3CErrorCode("SERE0014", "It is an error to use the HTML output method when characters which are legal in XML but not in HTML, specifically the control characters #x7F-#x9F, appear in the instance of the data model.");
     public static final ErrorCode SERE0015 = new W3CErrorCode("SERE0015", "It is an error to use the HTML output method when > appears within a processing instruction in the data model instance being serialized.");
     public static final ErrorCode SEPM0016 = new W3CErrorCode("SEPM0016", "It is a an error if a parameter value is invalid for the defined domain.");
+    public static final ErrorCode SEPM0017 = new W3CErrorCode("SEPM0017", "It is an error if evaluating an expression in order to extract the setting of a serialization parameter from a data model instance would yield an error.");
+    public static final ErrorCode SEPM0018 = new W3CErrorCode("SEPM0018", "It is an error if evaluating an expression in order to extract the setting of the use-character-maps serialization parameter from a data model instance would yield a sequence of length greater than one.");
 
     /* XQuery 3.1 Serialization */
     public static final ErrorCodes.ErrorCode SERE0021 = new ErrorCodes.ErrorCode("SERE0021", "It is an error if a sequence being serialized using the JSON " +
@@ -227,6 +231,13 @@ public class ErrorCodes {
     public static final ErrorCode FOQM0005 = new W3CErrorCode("FOQM0005", "Parameter for dynamically-loaded XQuery " +
             "module has incorrect type");
     public static final ErrorCode FOQM0006 = new W3CErrorCode("FOQM0006", "No suitable XQuery processor available.");
+    public static final ErrorCode FOXT0001 = new W3CErrorCode("FOXT0001", "No suitable XSLT processor available.");
+    public static final ErrorCode FOXT0002 = new W3CErrorCode("FOXT0002", "Invalid parameters to XSLT transformation");
+    public static final ErrorCode FOXT0003 = new W3CErrorCode("FOXT0003", "XSLT transformation failed");
+    public static final ErrorCode FOXT0004 = new W3CErrorCode("FOXT0004", "XSLT transformation has been disabled");
+    public static final ErrorCode FOXT0006 = new W3CErrorCode("FOXT0006", "XSLT output contains non-accepted characters");
+
+    public static final ErrorCode XTSE0165 = new W3CErrorCode("XTSE0165","It is a static error if the processor is not able to retrieve the resource identified by the URI reference [ in the href attribute of xsl:include or xsl:import] , or if the resource that is retrieved does not contain a stylesheet module conforming to this specification.");
 
     /* eXist specific XQuery and XPath errors
      *
@@ -244,6 +255,8 @@ public class ErrorCodes {
     public static final ErrorCode EXXQDY0002 = new EXistErrorCode("EXXQDY0002", "Error parsing XML.");
     public static final ErrorCode EXXQDY0003 = new EXistErrorCode("EXXQDY0003", "Only Supported for xquery version \"3.0\" and later.");
     public static final ErrorCode EXXQDY0004 = new EXistErrorCode("EXXQDY0004", "Only Supported for xquery version \"3.1\" and later.");
+    public static final ErrorCode EXXQDY0005 = new EXistErrorCode("EXXQDY0005", "No function call details were provided when trying to execute a Library Module.");
+    public static final ErrorCode EXXQDY0006 = new EXistErrorCode("EXXQDY0006", "Unable to find named function when trying to execute a Library Module.");
 
     public static final ErrorCode ERROR = new EXistErrorCode("ERROR", "Error.");
 

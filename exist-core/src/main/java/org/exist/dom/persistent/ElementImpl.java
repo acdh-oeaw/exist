@@ -26,6 +26,7 @@ import org.apache.commons.io.output.UnsynchronizedByteArrayOutputStream;
 import org.exist.EXistException;
 import org.exist.Namespaces;
 import org.exist.dom.NamedNodeMapImpl;
+import org.exist.dom.NodeListImpl;
 import org.exist.dom.QName;
 import org.exist.dom.QName.IllegalQNameException;
 import org.exist.indexing.IndexController;
@@ -46,6 +47,7 @@ import org.exist.util.UTF8;
 import org.exist.util.pool.NodePool;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.Constants;
+import org.exist.xquery.Expression;
 import org.exist.xquery.value.StringValue;
 import org.w3c.dom.*;
 
@@ -66,7 +68,7 @@ import static org.exist.dom.QName.Validity.ILLEGAL_FORMAT;
  *
  * @author Wolfgang Meier
  */
-public class ElementImpl extends NamedNode implements Element {
+public class ElementImpl extends NamedNode<ElementImpl> implements Element {
 
     public static final int LENGTH_ELEMENT_CHILD_COUNT = 4; //sizeof int
     public static final int LENGTH_ATTRIBUTES_COUNT = 2; //sizeof short
@@ -83,7 +85,11 @@ public class ElementImpl extends NamedNode implements Element {
     private boolean isDirty = false;
 
     public ElementImpl() {
-        super(Node.ELEMENT_NODE);
+        this((Expression) null);
+    }
+
+    public ElementImpl(final Expression expression) {
+        super(expression, Node.ELEMENT_NODE);
     }
 
     /**
@@ -92,7 +98,17 @@ public class ElementImpl extends NamedNode implements Element {
      * @param nodeName Description of the Parameter
      */
     public ElementImpl(final QName nodeName, final SymbolTable symbols) throws DOMException {
-        super(Node.ELEMENT_NODE, nodeName);
+        this(null, nodeName, symbols);
+    }
+
+    /**
+     * Constructor for the ElementImpl object
+     * @param expression the expression from which this element derives
+     * @param symbols for ElementImpl
+     * @param nodeName Description of the Parameter
+     */
+    public ElementImpl(final Expression expression, final QName nodeName, final SymbolTable symbols) throws DOMException {
+        super(expression, Node.ELEMENT_NODE, nodeName);
         this.nodeName = nodeName;
         if(symbols.getSymbol(nodeName.getLocalPart()) < 0) {
             throw new DOMException(DOMException.INVALID_ACCESS_ERR,
@@ -101,7 +117,11 @@ public class ElementImpl extends NamedNode implements Element {
     }
 
     public ElementImpl(final ElementImpl other) {
-        super(other);
+        this(null, other);
+    }
+
+    public ElementImpl(final Expression expression, final ElementImpl other) {
+        super(expression, other);
         this.children = other.children;
         this.attributes = other.attributes;
         this.namespaceMappings = other.namespaceMappings;
@@ -329,7 +349,7 @@ public class ElementImpl extends NamedNode implements Element {
         if(pooled) {
             node = (ElementImpl) NodePool.getInstance().borrowNode(Node.ELEMENT_NODE);
         } else {
-            node = new ElementImpl();
+            node = new ElementImpl((Expression) null);
         }
         node.setNodeId(dln);
         node.nodeName = doc.getBrokerPool().getSymbols().getQName(Node.ELEMENT_NODE, namespace, name, prefix);
@@ -508,7 +528,7 @@ public class ElementImpl extends NamedNode implements Element {
         }
     }
 
-    private void appendAttributes(final Txn transaction, final NodeList attribs) throws DOMException {
+    private void appendAttributes(final Txn transaction, final NodeListImpl attribs) throws DOMException {
         final NodeList duplicateAttrs = findDupAttributes(attribs);
         removeAppendAttributes(transaction, duplicateAttrs, attribs);
     }
@@ -614,6 +634,16 @@ public class ElementImpl extends NamedNode implements Element {
         }
     }
 
+    private QName attrName(Attr attr) {
+        final String ns = attr.getNamespaceURI();
+        final String prefix = (Namespaces.XML_NS.equals(ns) ? XMLConstants.XML_NS_PREFIX : attr.getPrefix());
+        String name = attr.getLocalName();
+        if(name == null) {
+            name = attr.getName();
+        }
+        return new QName(name, ns, prefix);
+    }
+
     private Node appendChild(final Txn transaction, final NodeId newNodeId, final NodeImplRef last, final NodePath lastPath, final Node child, final StreamListener listener)
         throws DOMException {
         if(last == null || last.getNode() == null) {
@@ -632,7 +662,7 @@ public class ElementImpl extends NamedNode implements Element {
                 case Node.ELEMENT_NODE:
                     // create new element
                     final ElementImpl elem =
-                        new ElementImpl(
+                        new ElementImpl(getExpression(),
                             new QName(child.getLocalName() == null ?
                                 child.getNodeName() : child.getLocalName(),
                                 child.getNamespaceURI(),
@@ -686,7 +716,7 @@ public class ElementImpl extends NamedNode implements Element {
                     return elem;
 
                 case Node.TEXT_NODE:
-                    final TextImpl text = new TextImpl(newNodeId, ((Text)child).getData());
+                    final TextImpl text = new TextImpl(getExpression(), newNodeId, ((Text)child).getData());
                     text.setOwnerDocument(owner);
                     // insert the node
                     broker.insertNodeAfter(transaction, last.getNode(), text);
@@ -696,7 +726,7 @@ public class ElementImpl extends NamedNode implements Element {
                     return text;
 
                 case Node.CDATA_SECTION_NODE:
-                    final CDATASectionImpl cdata = new CDATASectionImpl(newNodeId, ((CDATASection)child).getData());
+                    final CDATASectionImpl cdata = new CDATASectionImpl(getExpression(), newNodeId, ((CDATASection)child).getData());
                     cdata.setOwnerDocument(owner);
                     // insert the node
                     broker.insertNodeAfter(transaction, last.getNode(), cdata);
@@ -706,17 +736,11 @@ public class ElementImpl extends NamedNode implements Element {
 
                 case Node.ATTRIBUTE_NODE:
                     final Attr attr = (Attr) child;
-                    final String ns = attr.getNamespaceURI();
-                    final String prefix = (Namespaces.XML_NS.equals(ns) ? XMLConstants.XML_NS_PREFIX : attr.getPrefix());
-                    String name = attr.getLocalName();
-                    if(name == null) {
-                        name = attr.getName();
-                    }
-                    final QName attrName = new QName(name, ns, prefix);
-                    final AttrImpl attrib = new AttrImpl(attrName, attr.getValue(), broker.getBrokerPool().getSymbols());
+                    final QName attrName = attrName(attr);
+                    final AttrImpl attrib = new AttrImpl(getExpression(), attrName, attr.getValue(), broker.getBrokerPool().getSymbols());
                     attrib.setNodeId(newNodeId);
                     attrib.setOwnerDocument(owner);
-                    if(ns != null && attrName.compareTo(Namespaces.XML_ID_QNAME) == Constants.EQUAL) {
+                    if(attrName.getNamespaceURI() != null && attrName.compareTo(Namespaces.XML_ID_QNAME) == Constants.EQUAL) {
                         // an xml:id attribute. Normalize the attribute and set its type to ID
                         attrib.setValue(StringValue.trimWhitespace(StringValue.collapseWhitespace(attrib.getValue())));
                         attrib.setType(AttrImpl.ID);
@@ -730,7 +754,7 @@ public class ElementImpl extends NamedNode implements Element {
                     return attrib;
 
                 case Node.COMMENT_NODE:
-                    final CommentImpl comment = new CommentImpl(((Comment)child).getData());
+                    final CommentImpl comment = new CommentImpl(getExpression(), ((Comment)child).getData());
                     comment.setNodeId(newNodeId);
                     comment.setOwnerDocument(owner);
                     // insert the node
@@ -741,7 +765,7 @@ public class ElementImpl extends NamedNode implements Element {
 
                 case Node.PROCESSING_INSTRUCTION_NODE:
                     final ProcessingInstructionImpl pi =
-                        new ProcessingInstructionImpl(newNodeId,
+                        new ProcessingInstructionImpl(getExpression(), newNodeId,
                             ((ProcessingInstruction)child).getTarget(),
                             ((ProcessingInstruction)child).getData());
                     pi.setOwnerDocument(owner);
@@ -810,6 +834,10 @@ public class ElementImpl extends NamedNode implements Element {
                 final int childCount = getChildCount();
                 for(int i = 0; i < childCount; i++) {
                     final IStoredNode next = iterator.next();
+                    if (next == null) {
+                        LOG.warn("Miscounted getChildCount() index: {} was null of: {}", i, childCount);
+                        continue;
+                    }
                     if(next.getNodeType() != Node.ATTRIBUTE_NODE) {
                         break;
                     }
@@ -824,7 +852,7 @@ public class ElementImpl extends NamedNode implements Element {
                 final String prefix = entry.getKey();
                 final String ns = entry.getValue();
                 final QName attrName = new QName(prefix, Namespaces.XMLNS_NS, XMLConstants.XMLNS_ATTRIBUTE);
-                final AttrImpl attr = new AttrImpl(attrName, ns, null);
+                final AttrImpl attr = new AttrImpl(getExpression(), attrName, ns, null);
                 attr.setOwnerDocument(ownerDocument);
                 map.setNamedItem(attr);
             }
@@ -1060,7 +1088,7 @@ public class ElementImpl extends NamedNode implements Element {
         Node node = null;
         if (!isDirty) {
             final NodeId child = nodeId.getChild(children);
-            node = ownerDocument.getNode(new NodeProxy(ownerDocument, child));
+            node = ownerDocument.getNode(new NodeProxy(getExpression(), ownerDocument, child));
         }
         if (node == null) {
             final NodeList cl;
@@ -1234,7 +1262,7 @@ public class ElementImpl extends NamedNode implements Element {
 
             try(final DBBroker broker = ownerDocument.getBrokerPool().getBroker()) {
 
-                final AttrImpl attrib = new AttrImpl(attrName, value, broker.getBrokerPool().getSymbols());
+                final AttrImpl attrib = new AttrImpl(getExpression(), attrName, value, broker.getBrokerPool().getSymbols());
                 appendChild(attrib);
             } catch (final EXistException e) {
                 LOG.error(e);
@@ -1297,7 +1325,7 @@ public class ElementImpl extends NamedNode implements Element {
 
             try(final DBBroker broker = ownerDocument.getBrokerPool().getBroker()) {
 
-                final AttrImpl attrib = new AttrImpl(attrName, newAttr.getValue(), broker.getBrokerPool().getSymbols());
+                final AttrImpl attrib = new AttrImpl(getExpression(), attrName, newAttr.getValue(), broker.getBrokerPool().getSymbols());
                 return (Attr)appendChild(attrib);
             } catch (final EXistException e) {
                 LOG.error(e);
@@ -1320,10 +1348,17 @@ public class ElementImpl extends NamedNode implements Element {
     }
 
     public Iterator<String> getPrefixes() {
+
+        if (namespaceMappings == null) {
+            return Collections.<String>emptySet().iterator();
+        }
         return namespaceMappings.keySet().iterator();
     }
 
     public String getNamespaceForPrefix(final String prefix) {
+        if (namespaceMappings == null) {
+            return null;
+        }
         return namespaceMappings.get(prefix);
     }
 
@@ -2019,5 +2054,20 @@ public class ElementImpl extends NamedNode implements Element {
             }
         }
         return true;
+    }
+
+    @Override
+    public String lookupNamespaceURI(final String prefix) {
+
+        for (Node pathNode = this; pathNode != null; pathNode = pathNode.getParentNode()) {
+            if (pathNode instanceof ElementImpl) {
+                final String namespaceForPrefix = ((ElementImpl)pathNode).getNamespaceForPrefix(prefix);
+                if (namespaceForPrefix != null) {
+                    return namespaceForPrefix;
+                }
+            }
+        }
+
+        return XMLConstants.NULL_NS_URI;
     }
 }

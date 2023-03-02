@@ -27,7 +27,7 @@
 
     <groupId>org.exist-db</groupId>
     <artifactId>exist-parent</artifactId>
-    <version>6.0.1</version>
+    <version>6.2.0</version>
     <packaging>pom</packaging>
 
     <name>eXist-db Parent</name>
@@ -61,7 +61,7 @@
         <connection>scm:git:https://github.com/exist-db/exist.git</connection>
         <developerConnection>scm:git:https://github.com/exist-db/exist.git</developerConnection>
         <url>scm:git:https://github.com/exist-db/exist.git</url>
-      <tag>eXist-6.0.1</tag>
+      <tag>eXist-6.2.0</tag>
   </scm>
 
     <mailingLists>
@@ -100,27 +100,31 @@
 
         <contact.email>info@exist-db.org</contact.email>
 
-        <ant.version>1.10.12</ant.version>
-        <apache.httpcomponents.version>4.5.13</apache.httpcomponents.version>
-        <apache.httpcomponents.core.version>4.4.15</apache.httpcomponents.core.version>
+        <ant.version>1.10.13</ant.version>
+        <apache.httpcomponents.version>4.5.14</apache.httpcomponents.version>
+        <apache.httpcomponents.core.version>4.4.16</apache.httpcomponents.core.version>
         <apache.xmlrpc.version>4.0.0</apache.xmlrpc.version>
+        <appassembler.version>2.1.0</appassembler.version>
         <aspectj.version>1.9.8.M1</aspectj.version>
-        <exquery.distribution.version>0.2.0</exquery.distribution.version>
+        <exquery.distribution.version>0.2.1</exquery.distribution.version>
         <icu.version>59.1</icu.version>
         <izpack.version>5.1.3</izpack.version>
         <jansi.version>2.4.0</jansi.version>
         <jaxb.api.version>3.0.1</jaxb.api.version>
         <jaxb.impl.version>3.0.2</jaxb.impl.version>
-        <jetty.version>9.4.44.v20210927</jetty.version>
-        <log4j.version>2.17.1</log4j.version>
+        <jetty.version>9.4.50.v20221201</jetty.version>
+        <log4j.version>2.19.0</log4j.version>
         <lucene.version>4.10.4</lucene.version>
         <milton.version>1.8.1.3</milton.version>
         <saxon.version>9.9.1-8</saxon.version>
-        <xmlunit.version>2.8.4</xmlunit.version>
+        <xmlresolver.version>4.6.4</xmlresolver.version>
+        <xmlunit.version>2.9.1</xmlunit.version>
         <junit.version>4.13.2</junit.version>
-        <junit.jupiter.version>5.8.2</junit.jupiter.version>
-        <junit.vintage.version>5.8.2</junit.vintage.version>
-        <easymock.version>4.3</easymock.version>
+        <junit.jupiter.version>5.9.2</junit.jupiter.version>
+        <junit.vintage.version>5.9.2</junit.vintage.version>
+        <easymock.version>5.0.1</easymock.version>
+        <objenesis.version>3.3</objenesis.version>
+        <assertj.version>3.24.2</assertj.version>
         <junit.toolbox.version>2.4</junit.toolbox.version>
         <hamcrest.version>2.2</hamcrest.version>
 
@@ -176,7 +180,7 @@
             <dependency>
                 <groupId>org.jctools</groupId>
                 <artifactId>jctools-core</artifactId>
-                <version>3.3.0</version>
+                <version>4.0.1</version>
             </dependency>
 
             <dependency>
@@ -245,7 +249,7 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
-                <artifactId>log4j-slf4j-impl</artifactId>
+                <artifactId>log4j-slf4j2-impl</artifactId>
                 <version>${log4j.version}</version>
                 <scope>runtime</scope>
             </dependency>
@@ -253,7 +257,7 @@
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>1.7.33</version>
+                <version>2.0.6</version>
             </dependency>
 
             <dependency>
@@ -390,7 +394,7 @@
             <dependency>
                 <groupId>org.expath.packaging</groupId>
                 <artifactId>pkg-java</artifactId>
-                <version>1.6.1</version>
+                <version>2.0.0</version>
             </dependency>
 
             <dependency>
@@ -432,7 +436,7 @@
             <dependency>
                 <groupId>it.unimi.dsi</groupId>
                 <artifactId>fastutil</artifactId>
-                <version>8.5.6</version>
+                <version>8.5.11</version>
             </dependency>
 
             <dependency>
@@ -516,15 +520,27 @@
 
             <!-- test dependencies -->
             <dependency>
+                <groupId>com.googlecode.junit-toolbox</groupId>
+                <artifactId>junit-toolbox</artifactId>
+                <version>${junit.toolbox.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.easymock</groupId>
                 <artifactId>easymock</artifactId>
                 <version>${easymock.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>com.googlecode.junit-toolbox</groupId>
-                <artifactId>junit-toolbox</artifactId>
-                <version>${junit.toolbox.version}</version>
+                <groupId>org.objenesis</groupId>
+                <artifactId>objenesis</artifactId>
+                <version>${objenesis.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
@@ -537,7 +553,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-clean-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>com.mycila</groupId>
@@ -547,7 +563,7 @@
                 <plugin>
                     <groupId>org.owasp</groupId>
                     <artifactId>dependency-check-maven</artifactId>
-                    <version>6.5.3</version>
+                    <version>8.0.2</version>
                     <configuration>
                         <!-- Use Evolved Binary's mirror of nvd.nist.gov -->
                         <cveUrlModified>https://nvd.mirror.evolvedbinary.com/feeds/json/cve/1.1/nvdcve-1.1-modified.json.gz</cveUrlModified>
@@ -576,7 +592,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.2.0</version>
+                    <version>3.3.0</version>
                 </plugin>
                 <plugin>
                     <groupId>com.code54.mojo</groupId>
@@ -606,7 +622,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.9.0</version>
+                    <version>3.10.1</version>
                     <configuration>
                         <source>${project.build.source}</source>
                         <target>${project.build.target}</target>
@@ -616,7 +632,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.2.2</version>
+                    <version>3.3.0</version>
                     <configuration>
                         <archive>
                             <manifest>
@@ -627,8 +643,9 @@
                                 <Build-Tag>${build-tag}</Build-Tag>
                                 <Git-Commit>${build-commit}</Git-Commit>
                                 <Git-Commit-Abbrev>${build-commit-abbrev}</Git-Commit-Abbrev>
+                                <Git-Commit-Timestamp>${build-tstamp}</Git-Commit-Timestamp>
                                 <Build-Version>${build-version}</Build-Version>
-                                <Build-Timestamp>${build-tstamp}</Build-Timestamp>
+                                <Build-Timestamp>${maven.build.timestamp}</Build-Timestamp>
                                 <Source-Repository>${project.scm.connection}</Source-Repository>
                                 <Description>${project.description}</Description>
                                 <Implementation-URL>${project.url}</Implementation-URL>
@@ -650,8 +667,9 @@
                                 <Build-Tag>${build-tag}</Build-Tag>
                                 <Git-Commit>${build-commit}</Git-Commit>
                                 <Git-Commit-Abbrev>${build-commit-abbrev}</Git-Commit-Abbrev>
+                                <Git-Commit-Timestamp>${build-tstamp}</Git-Commit-Timestamp>
                                 <Build-Version>${build-version}</Build-Version>
-                                <Build-Timestamp>${build-tstamp}</Build-Timestamp>
+                                <Build-Timestamp>${maven.build.timestamp}</Build-Timestamp>
                                 <Source-Repository>${project.scm.connection}</Source-Repository>
                                 <Description>${project.description}</Description>
                                 <Implementation-URL>${project.url}</Implementation-URL>
@@ -662,7 +680,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.3.1</version>
+                    <version>3.4.1</version>
                     <configuration>
                         <source>${project.build.source}</source>
                         <archive>
@@ -674,8 +692,9 @@
                                 <Build-Tag>${build-tag}</Build-Tag>
                                 <Git-Commit>${build-commit}</Git-Commit>
                                 <Git-Commit-Abbrev>${build-commit-abbrev}</Git-Commit-Abbrev>
+                                <Git-Commit-Timestamp>${build-tstamp}</Git-Commit-Timestamp>
                                 <Build-Version>${build-version}</Build-Version>
-                                <Build-Timestamp>${build-tstamp}</Build-Timestamp>
+                                <Build-Timestamp>${maven.build.timestamp}</Build-Timestamp>
                                 <Source-Repository>${project.scm.connection}</Source-Repository>
                                 <Description>${project.description}</Description>
                                 <Implementation-URL>${project.url}</Implementation-URL>
@@ -692,7 +711,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.7</version>
+                    <version>0.8.8</version>
                     <configuration>
                         <propertyName>jacocoArgLine</propertyName>
                         <excludes>
@@ -717,7 +736,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M8</version>
                     <dependencies>
                         <dependency>
                             <groupId>org.junit.jupiter</groupId>
@@ -734,10 +753,15 @@
                             <artifactId>jaxb-runtime</artifactId>
                             <version>${jaxb.impl.version}</version>
                         </dependency>
+                        <dependency>
+                            <groupId>org.objenesis</groupId>
+                            <artifactId>objenesis</artifactId>
+                            <version>${objenesis.version}</version>
+                        </dependency>
                     </dependencies>
                     <configuration>
                         <forkCount>2C</forkCount>
-                        <!--  Setting `reuseForks` to `true` greatly speeds up execution of the the test suite.
+                        <!--  Setting `reuseForks` to `true` greatly speeds up execution of the test suite.
                               However it can make it hard to diagnose problems if tests leak state; If you experience
                               such a problem you may want to set it to `false` whilst debugging -->
                         <reuseForks>true</reuseForks>
@@ -754,17 +778,17 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-report-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M8</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.0.0-M5</version>
+                    <version>3.0.0-M8</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-project-info-reports-plugin</artifactId>
-                    <version>3.1.2</version>
+                    <version>3.4.2</version>
                     <configuration>
                         <dependencyDetailsEnabled>false</dependencyDetailsEnabled>  <!-- TODO(AR) disabled due to slow `mvn site` build times -->
                     </configuration>
@@ -772,22 +796,22 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>versions-maven-plugin</artifactId>
-                    <version>2.9.0</version>
+                    <version>2.14.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
-                    <version>3.10.0</version>
+                    <version>3.12.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-install-plugin</artifactId>
-                    <version>3.0.0-M1</version>
+                    <version>3.1.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
-                    <version>3.3.0</version>
+                    <version>3.4.2</version>
                     <configuration>
                         <archive>
                             <manifest>
@@ -798,8 +822,9 @@
                                 <Build-Tag>${build-tag}</Build-Tag>
                                 <Git-Commit>${build-commit}</Git-Commit>
                                 <Git-Commit-Abbrev>${build-commit-abbrev}</Git-Commit-Abbrev>
+                                <Git-Commit-Timestamp>${build-tstamp}</Git-Commit-Timestamp>
                                 <Build-Version>${build-version}</Build-Version>
-                                <Build-Timestamp>${build-tstamp}</Build-Timestamp>
+                                <Build-Timestamp>${maven.build.timestamp}</Build-Timestamp>
                                 <Source-Repository>${project.scm.connection}</Source-Repository>
                                 <Description>${project.description}</Description>
                                 <Implementation-URL>${project.url}</Implementation-URL>
@@ -810,17 +835,17 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
-                    <version>3.2.4</version>
+                    <version>3.4.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>exec-maven-plugin</artifactId>
-                    <version>3.0.0</version>
+                    <version>3.1.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.0.0-M2</version>
+                    <version>3.0.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -836,7 +861,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-scm-plugin</artifactId>
-                    <version>1.12.2</version>
+                    <version>1.13.0</version>
                     <configuration>
                         <sign>true</sign>
                     </configuration>
@@ -874,6 +899,7 @@
                             <excludes>
                                 <exclude>FDB-backport-LGPL-21-ONLY-license.template.txt</exclude>
                                 <exclude>FDB-backport-LGPL-21-ONLY-license.xml.template.txt</exclude>
+                                <exclude>LGPL-21-license.txt</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
@@ -949,9 +975,6 @@
                         </goals>
                         <configuration>
                             <failOnWarning>true</failOnWarning>
-                            <ignoredUnusedDeclaredDependencies>
-                                <ignoredUnusedDeclaredDependency>org.junit.vintage:junit-vintage-engine:jar:${junit.vintage.version}</ignoredUnusedDeclaredDependency>
-                            </ignoredUnusedDeclaredDependencies>
                         </configuration>
                     </execution>
                 </executions>

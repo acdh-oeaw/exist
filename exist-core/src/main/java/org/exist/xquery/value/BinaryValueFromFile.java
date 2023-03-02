@@ -23,9 +23,11 @@ package org.exist.xquery.value;
 
 import org.exist.util.io.ByteBufferAccessor;
 import org.exist.util.io.ByteBufferInputStream;
+import org.exist.xquery.Expression;
 import org.exist.xquery.XPathException;
 import org.exist.xquery.XQueryContext;
 
+import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -47,37 +49,51 @@ import java.util.function.BiConsumer;
 public class BinaryValueFromFile extends BinaryValue {
 
     private final Path file;
+    private final RandomAccessFile fileHandle;
     private final FileChannel channel;
     private final MappedByteBuffer buf;
     private final Optional<BiConsumer<Boolean, Path>> closeListener;
 
     protected BinaryValueFromFile(final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file, final Optional<BiConsumer<Boolean, Path>> closeListener) throws XPathException {
-        super(manager, binaryValueType);
+        this(null, manager, binaryValueType, file, closeListener);
+    }
+
+    protected BinaryValueFromFile(final Expression expression, final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file, final Optional<BiConsumer<Boolean, Path>> closeListener) throws XPathException {
+        super(expression, manager, binaryValueType);
         try {
             this.file = file;
-            this.channel = new RandomAccessFile(file.toFile(), "r").getChannel();
+            this.fileHandle = new RandomAccessFile(file.toFile(), "r");
+            this.channel = fileHandle.getChannel();
             this.buf = channel.map(MapMode.READ_ONLY, 0, channel.size());
             this.closeListener = closeListener;
         } catch (final IOException ioe) {
-            throw new XPathException(ioe);
+            throw new XPathException(getExpression(), ioe);
         }
     }
 
     public static BinaryValueFromFile getInstance(final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file) throws XPathException {
-        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(manager, binaryValueType, file, Optional.empty());
+        return getInstance(manager, binaryValueType, file, (Expression) null);
+    }
+
+    public static BinaryValueFromFile getInstance(final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file, final Expression expression) throws XPathException {
+        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(expression, manager, binaryValueType, file, Optional.empty());
         manager.registerBinaryValueInstance(binaryFile);
         return binaryFile;
     }
 
     public static BinaryValueFromFile getInstance(final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file, final BiConsumer<Boolean, Path> closeListener) throws XPathException {
-        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(manager, binaryValueType, file, Optional.of(closeListener));
+        return getInstance(manager, binaryValueType, file, closeListener, null);
+    }
+
+    public static BinaryValueFromFile getInstance(final BinaryValueManager manager, final BinaryValueType binaryValueType, final Path file, final BiConsumer<Boolean, Path> closeListener, final Expression expression) throws XPathException {
+        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(expression, manager, binaryValueType, file, Optional.of(closeListener));
         manager.registerBinaryValueInstance(binaryFile);
         return binaryFile;
     }
 
     @Override
     public BinaryValue convertTo(final BinaryValueType binaryValueType) throws XPathException {
-        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(getManager(), binaryValueType, file, Optional.empty());
+        final BinaryValueFromFile binaryFile = new BinaryValueFromFile(getExpression(), getManager(), binaryValueType, file, Optional.empty());
         getManager().registerBinaryValueInstance(binaryFile);
         return binaryFile;
     }
@@ -115,6 +131,7 @@ public class BinaryValueFromFile extends BinaryValue {
         boolean closed = false;
         try {
             channel.close();
+            fileHandle.close();
             closed = true;
         } finally {
             final boolean finalClosed = closed;
@@ -144,10 +161,9 @@ public class BinaryValueFromFile extends BinaryValue {
     }
 
     @Override
-    public void destroy(final XQueryContext context, final Sequence contextSequence) {
+    public void destroy(final XQueryContext context, @Nullable final Sequence contextSequence) {
         // do not close if this object is part of the contextSequence
-        if (contextSequence == this ||
-                (contextSequence instanceof ValueSequence && ((ValueSequence) contextSequence).containsValue(this))) {
+        if (contextSequence != null && (contextSequence == this || contextSequence.containsReference(this))) {
             return;
         }
         try {

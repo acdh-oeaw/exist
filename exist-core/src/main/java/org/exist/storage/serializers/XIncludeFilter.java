@@ -56,6 +56,7 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
 
+import javax.annotation.Nullable;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
@@ -72,6 +73,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringTokenizer;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A filter that listens for XInclude elements in the stream
@@ -103,15 +106,15 @@ public class XIncludeFilter implements Receiver {
         }
     }
 
-    private Receiver receiver;
-    private Serializer serializer;
-    private DocumentImpl document = null;
-    private String moduleLoadPath = null;
-    private Map<String, String> namespaces = new HashMap<>(10);
+    private @Nullable Receiver receiver;
+    private final Serializer serializer;
+    private @Nullable DocumentImpl document = null;
+    private @Nullable String moduleLoadPath = null;
+    private @Nullable Map<String, String> namespaces = null;
     private boolean inFallback = false;
-    private ResourceError error = null;
+    private @Nullable ResourceError error = null;
 
-    public XIncludeFilter(final Serializer serializer, final Receiver receiver) {
+    public XIncludeFilter(final Serializer serializer, @Nullable final Receiver receiver) {
         this.receiver = receiver;
         this.serializer = serializer;
     }
@@ -120,11 +123,23 @@ public class XIncludeFilter implements Receiver {
         this(serializer, null);
     }
 
+    /**
+     * Reset the XInclude filter so that it is ready for reuse.
+     */
+    public void reset() {
+        this.receiver = null;
+        this.document = null;
+        this.moduleLoadPath = null;
+        this.namespaces = null;
+        this.inFallback = false;
+        this.error = null;
+    }
+
     public void setReceiver(final Receiver handler) {
         this.receiver = handler;
     }
 
-    public Receiver getReceiver() {
+    public @Nullable Receiver getReceiver() {
         return receiver;
     }
 
@@ -178,7 +193,9 @@ public class XIncludeFilter implements Receiver {
 
     @Override
     public void endPrefixMapping(final String prefix) throws SAXException {
-        namespaces.remove(prefix);
+        if (namespaces != null) {
+            namespaces.remove(prefix);
+        }
         receiver.endPrefixMapping(prefix);
     }
 
@@ -405,7 +422,9 @@ public class XIncludeFilter implements Receiver {
                     context = compiled.getContext();
                     context.prepareForReuse();
                 }
-                context.declareNamespaces(namespaces);
+                if (namespaces != null) {
+                    context.declareNamespaces(namespaces);
+                }
                 context.declareNamespace("xinclude", Namespaces.XINCLUDE_NS);
 
                 //setup the http context if known
@@ -507,7 +526,7 @@ public class XIncludeFilter implements Receiver {
                 final InputSource src = new InputSource(is);
 
                 reader = parserPool.borrowXMLReader();
-                final SAXAdapter adapter = new SAXAdapter();
+                final SAXAdapter adapter = new SAXAdapter((Expression) null);
                 reader.setContentHandler(adapter);
                 reader.setProperty(Namespaces.SAX_LEXICAL_HANDLER, adapter);
                 reader.parse(src);
@@ -526,6 +545,9 @@ public class XIncludeFilter implements Receiver {
 
     @Override
     public void startPrefixMapping(final String prefix, final String uri) throws SAXException {
+        if (namespaces == null) {
+            namespaces = new HashMap<>(10);
+        }
         namespaces.put(prefix, uri);
         receiver.startPrefixMapping(prefix, uri);
     }
@@ -542,16 +564,19 @@ public class XIncludeFilter implements Receiver {
             }
             final int p1 = xpointer.indexOf(')', p0 + 6);
             if (p1 < 0) {
-                throw new XPathException("expected ) for xmlns()");
+                throw new XPathException((Expression) null, "expected ) for xmlns()");
             }
             final String mapping = xpointer.substring(p0 + 6, p1);
             xpointer = xpointer.substring(0, p0) + xpointer.substring(p1 + 1);
             final StringTokenizer tok = new StringTokenizer(mapping, "= \t\n");
             if (tok.countTokens() < 2) {
-                throw new XPathException("expected prefix=namespace mapping in " + mapping);
+                throw new XPathException((Expression) null, "expected prefix=namespace mapping in " + mapping);
             }
             final String prefix = tok.nextToken();
             final String namespaceURI = tok.nextToken();
+            if (namespaces == null) {
+                namespaces = new HashMap<>(10);
+            }
             namespaces.put(prefix, namespaceURI);
         }
         return xpointer;
@@ -580,8 +605,8 @@ public class XIncludeFilter implements Receiver {
             }
             start = end;
             try {
-                param = URLDecoder.decode(param, "UTF-8");
-                value = URLDecoder.decode(value, "UTF-8");
+                param = URLDecoder.decode(param, UTF_8.name());
+                value = URLDecoder.decode(value, UTF_8.name());
                 LOG.debug("parameter: {} = {}", param, value);
                 parameters.put(param, value);
             } catch (final UnsupportedEncodingException e) {

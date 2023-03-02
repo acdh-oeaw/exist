@@ -25,11 +25,13 @@ package org.exist.test.runner;
 import com.evolvedbinary.j8fu.tuple.Tuple2;
 import org.exist.EXistException;
 import org.exist.dom.QName;
+import org.exist.repo.ExistRepository;
 import org.exist.security.PermissionDeniedException;
 import org.exist.source.ClassLoaderSource;
 import org.exist.source.FileSource;
 import org.exist.source.Source;
 import org.exist.storage.BrokerPool;
+import org.exist.storage.BrokerPoolServiceException;
 import org.exist.util.Configuration;
 import org.exist.util.ConfigurationHelper;
 import org.exist.util.DatabaseConfigurationException;
@@ -88,65 +90,82 @@ public class XQueryTestRunner extends AbstractTestRunner {
     private static XQueryTestInfo extractTestInfo(final Path path) throws InitializationError {
         try {
             final Configuration config = getConfiguration();
+
+            final ExistRepository expathRepo = new ExistRepository();
+            try {
+                expathRepo.configure(config);
+                expathRepo.prepare(null);
+            } catch (final BrokerPoolServiceException e) {
+                throw new InitializationError(e);
+            }
+
             final XQueryContext xqueryContext = new XQueryContext(config);
+            try {
+                xqueryContext.setTestRepository(Optional.of(expathRepo));
 
-            final Source xquerySource = new FileSource(path, UTF_8, false);
-            final XQuery xquery = new XQuery();
+                final Source xquerySource = new FileSource(path, UTF_8, false);
+                final XQuery xquery = new XQuery();
 
-            final CompiledXQuery compiledXQuery = xquery.compile(xqueryContext, xquerySource);
+                final CompiledXQuery compiledXQuery = xquery.compile(xqueryContext, xquerySource);
 
-            String moduleNsPrefix = null;
-            String moduleNsUri = null;
-            final List<XQueryTestInfo.TestFunctionDef> testFunctions = new ArrayList<>();
+                String moduleNsPrefix = null;
+                String moduleNsUri = null;
+                final List<XQueryTestInfo.TestFunctionDef> testFunctions = new ArrayList<>();
 
-            final Iterator<UserDefinedFunction> localFunctions = compiledXQuery.getContext().localFunctions();
-            while (localFunctions.hasNext()) {
-                final UserDefinedFunction localFunction = localFunctions.next();
-                final FunctionSignature localFunctionSignature = localFunction.getSignature();
+                final Iterator<UserDefinedFunction> localFunctions = compiledXQuery.getContext().localFunctions();
+                while (localFunctions.hasNext()) {
+                    final UserDefinedFunction localFunction = localFunctions.next();
+                    final FunctionSignature localFunctionSignature = localFunction.getSignature();
 
-                String testName = null;
-                boolean isTest = false;
+                    String testName = null;
+                    int testArity = 0;
+                    boolean isTest = false;
 
-                final Annotation[] annotations = localFunctionSignature.getAnnotations();
-                if (annotations != null) {
-                    for (final Annotation annotation : annotations) {
-                        final QName annotationName = annotation.getName();
-                        if (annotationName.getNamespaceURI().equals(XQSUITE_NAMESPACE)) {
-                            if (annotationName.getLocalPart().startsWith("assert")) {
-                                isTest = true;
-                                if (testName != null) {
-                                    break;
-                                }
-                            } else if (annotationName.getLocalPart().equals("name")) {
-                                final LiteralValue[] annotationValues = annotation.getValue();
-                                if (annotationValues != null && annotationValues.length > 0) {
-                                    testName = annotationValues[0].getValue().getStringValue();
-                                    if (isTest) {
+                    final Annotation[] annotations = localFunctionSignature.getAnnotations();
+                    if (annotations != null) {
+                        for (final Annotation annotation : annotations) {
+                            final QName annotationName = annotation.getName();
+                            if (annotationName.getNamespaceURI().equals(XQSUITE_NAMESPACE)) {
+                                if (annotationName.getLocalPart().startsWith("assert")) {
+                                    isTest = true;
+                                    if (testName != null) {
                                         break;
+                                    }
+                                } else if (annotationName.getLocalPart().equals("name")) {
+                                    final LiteralValue[] annotationValues = annotation.getValue();
+                                    if (annotationValues != null && annotationValues.length > 0) {
+                                        testName = annotationValues[0].getValue().getStringValue();
+                                        if (isTest) {
+                                            break;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                if (isTest) {
-                    if (testName == null) {
-                        testName = localFunctionSignature.getName().getLocalPart();
+                    if (isTest) {
+                        if (testName == null) {
+                            testName = localFunctionSignature.getName().getLocalPart();
+                            testArity = localFunctionSignature.getArgumentCount();
+                        }
+
+                        if (moduleNsPrefix == null) {
+                            moduleNsPrefix = localFunctionSignature.getName().getPrefix();
+                        }
+                        if (moduleNsUri == null) {
+                            moduleNsUri = localFunctionSignature.getName().getNamespaceURI();
+                        }
+
+                        testFunctions.add(new XQueryTestInfo.TestFunctionDef(testName, testArity));
                     }
+                } // end while
 
-                    if (moduleNsPrefix == null) {
-                        moduleNsPrefix = localFunctionSignature.getName().getPrefix();
-                    }
-                    if (moduleNsUri == null) {
-                        moduleNsUri = localFunctionSignature.getName().getNamespaceURI();
-                    }
-
-                    testFunctions.add(new XQueryTestInfo.TestFunctionDef(testName));
-                }
-            } // end while
-
-            return new XQueryTestInfo(moduleNsPrefix, moduleNsUri, testFunctions);
+                return new XQueryTestInfo(moduleNsPrefix, moduleNsUri, testFunctions);
+            } finally {
+                xqueryContext.runCleanupTasks();
+                xqueryContext.reset();
+            }
 
         } catch (final DatabaseConfigurationException | IOException | PermissionDeniedException | XPathException e) {
             throw new InitializationError(e);
@@ -200,9 +219,9 @@ public class XQueryTestRunner extends AbstractTestRunner {
     @Override
     public Description getDescription() {
         final String suiteName = checkDescription(this, getSuiteName());
-        final Description description = Description.createSuiteDescription(suiteName, EMPTY_ANNOTATIONS);
+        final Description description = Description.createSuiteDescription(suiteName);
         for (final XQueryTestInfo.TestFunctionDef testFunctionDef : info.getTestFunctions()) {
-            description.addChild(Description.createTestDescription(suiteName, checkDescription(testFunctionDef, testFunctionDef.getLocalName()), EMPTY_ANNOTATIONS));
+            description.addChild(Description.createTestDescription(suiteName, checkDescription(testFunctionDef, testFunctionDef.getLocalName())));
         }
         return description;
     }
@@ -263,13 +282,19 @@ public class XQueryTestRunner extends AbstractTestRunner {
 
         private static class TestFunctionDef {
             private final String localName;
+            private final int arity;
 
-            private TestFunctionDef(final String localName) {
+            private TestFunctionDef(final String localName, final int arity) {
                 this.localName = localName;
+                this.arity = arity;
             }
 
             public String getLocalName() {
                 return localName;
+            }
+
+            public int getArity() {
+                return arity;
             }
         }
     }

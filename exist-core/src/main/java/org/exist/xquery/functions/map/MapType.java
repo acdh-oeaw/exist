@@ -43,13 +43,15 @@ import org.exist.xquery.value.*;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
+import java.util.Optional;
+import java.util.function.BinaryOperator;
 import java.util.function.ToLongFunction;
 
 /**
  * Full implementation of the XDM map() type based on an
  * immutable hash-map.
  *
- * @author <a href="mailto:adam@evolvedbinary.com">Adam Rettter</a>
+ * @author <a href="mailto:adam@evolvedbinary.com">Adam Retter</a>
  */
 public class MapType extends AbstractMapType {
 
@@ -87,27 +89,47 @@ public class MapType extends AbstractMapType {
     }
 
     public MapType(final XQueryContext context) {
-        this(context,null);
+        this(null, context);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context) {
+        this(expression, context,null);
     }
 
     public MapType(final XQueryContext context, @Nullable final Collator collator) {
-        super(context);
+        this(null, context, collator);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context, @Nullable final Collator collator) {
+        super(expression, context);
         // if there's no collation, we'll use a hash map for better performance
         this.map = newMap(collator);
     }
 
     public MapType(final XQueryContext context, @Nullable final Collator collator, final AtomicValue key, final Sequence value) {
-        super(context);
+        this(null, context, collator, key, value);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context, @Nullable final Collator collator, final AtomicValue key, final Sequence value) {
+        super(expression, context);
         this.map = newMap(collator).put(key, value);
         this.keyType = key.getType();
     }
 
     public MapType(final XQueryContext context, @Nullable final Collator collator, final Iterable<Tuple2<AtomicValue, Sequence>> keyValues) {
-        this(context, collator, keyValues.iterator());
+        this(null, context, collator, keyValues);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context, @Nullable final Collator collator, final Iterable<Tuple2<AtomicValue, Sequence>> keyValues) {
+        this(expression, context, collator, keyValues.iterator());
     }
 
     public MapType(final XQueryContext context, @Nullable final Collator collator, final Iterator<Tuple2<AtomicValue, Sequence>> keyValues) {
-        super(context);
+        this(null, context, collator, keyValues);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context, @Nullable final Collator collator, final Iterator<Tuple2<AtomicValue, Sequence>> keyValues) {
+        super(expression, context);
 
         // bulk put
         final IMap<AtomicValue, Sequence> map = newMap(collator).linear();
@@ -118,7 +140,11 @@ public class MapType extends AbstractMapType {
     }
 
     public MapType(final XQueryContext context, final IMap<AtomicValue, Sequence> other, @Nullable final Integer keyType) {
-        super(context);
+        this(null, context, other, keyType);
+    }
+
+    public MapType(final Expression expression, final XQueryContext context, final IMap<AtomicValue, Sequence> other, @Nullable final Integer keyType) {
+        super(expression, context);
 
         if (other.isLinear()) {
             throw new IllegalArgumentException("Map must be immutable, but linear Map was provided");
@@ -181,6 +207,43 @@ public class MapType extends AbstractMapType {
         }
 
         // return an immutable map
+        return new MapType(getExpression(), context, newMap.forked(), prevType);
+    }
+
+    @Override
+    public AbstractMapType merge(final Iterable<AbstractMapType> others, final BinaryOperator<Sequence> mergeFn) {
+
+        // create a transient map
+        IMap<AtomicValue, Sequence> newMap = map.linear();
+
+        int prevType = keyType;
+        for (final AbstractMapType other: others) {
+            if (other instanceof MapType) {
+                // MapType - optimise merge
+                final MapType otherMap = (MapType) other;
+                newMap = newMap.merge(otherMap.map, mergeFn);
+
+                if (prevType != otherMap.keyType) {
+                    prevType = MIXED_KEY_TYPES;
+                }
+            } else {
+                // non MapType
+                for (final IEntry<AtomicValue, Sequence> entry : other) {
+                    final AtomicValue key = entry.key();
+                    final Optional<Sequence> headEntry = newMap.get(key);
+                    if (headEntry.isPresent()) {
+                        newMap = newMap.put(key, mergeFn.apply(headEntry.get(), entry.value()));
+                    } else {
+                        newMap = newMap.put(key, entry.value());
+                    }
+                    if (prevType != key.getType()) {
+                        prevType = MIXED_KEY_TYPES;
+                    }
+                }
+            }
+        }
+
+        // return an immutable map
         return new MapType(context, newMap.forked(), prevType);
     }
 
@@ -203,7 +266,7 @@ public class MapType extends AbstractMapType {
     @Override
     public AbstractMapType put(final AtomicValue key, final Sequence value) {
         final IMap<AtomicValue, Sequence> newMap = map.put(key, value);
-        return new MapType(this.context, newMap, keyType == key.getType() ? keyType : MIXED_KEY_TYPES);
+        return new MapType(getExpression(), this.context, newMap, keyType == key.getType() ? keyType : MIXED_KEY_TYPES);
     }
 
     @Override
@@ -214,6 +277,28 @@ public class MapType extends AbstractMapType {
         }
 
         return map.contains(key);
+    }
+
+    @Override
+    public boolean containsReference(final Item item) {
+        for (final Iterator<Sequence> it = map.values().iterator(); it.hasNext();) {
+            final Sequence value = it.next();
+            if (value == item || value.containsReference(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean contains(final Item item) {
+        for (final Iterator<Sequence> it = map.values().iterator(); it.hasNext();) {
+            final Sequence value = it.next();
+            if (value.equals(item) || value.contains(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -235,7 +320,7 @@ public class MapType extends AbstractMapType {
         }
 
         // return an immutable map
-        return new MapType(context, newMap.forked(), keyType);
+        return new MapType(getExpression(), context, newMap.forked(), keyType);
     }
 
     @Override

@@ -36,6 +36,11 @@ import org.apache.xmlrpc.client.XmlRpcClient;
 import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
 
 import org.exist.protocolhandler.xmldb.XmldbURL;
+import org.exist.storage.serializers.EXistOutputKeys;
+
+import javax.xml.transform.OutputKeys;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 
 /**
@@ -60,7 +65,7 @@ public class XmlrpcDownload {
         try {
             final XmlRpcClient client = new XmlRpcClient();
             final XmlRpcClientConfigImpl config = new XmlRpcClientConfigImpl();
-            config.setEncoding("UTF-8");
+            config.setEncoding(UTF_8.name());
             config.setEnabledForExtensions(true);
             config.setServerURL(new URL(xmldbURL.getXmlRpcURL()));
 
@@ -73,8 +78,9 @@ public class XmlrpcDownload {
 
             // Setup xml serializer
             final Map<String, String> options = new HashMap<>();
-            options.put("indent", "no");
-            options.put("encoding", "UTF-8");
+            options.put(OutputKeys.INDENT, "no");
+            options.put(OutputKeys.ENCODING, UTF_8.name());
+            options.put(EXistOutputKeys.OUTPUT_DOCTYPE, "yes");  // Preserve doctype
             
             // Setup client parameters
             final List<Object> params = new ArrayList<>();

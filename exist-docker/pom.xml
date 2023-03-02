@@ -28,7 +28,7 @@
     <parent>
         <groupId>org.exist-db</groupId>
         <artifactId>exist-parent</artifactId>
-        <version>6.0.1</version>
+        <version>6.2.0</version>
         <relativePath>../exist-parent</relativePath>
     </parent>
 
@@ -42,13 +42,14 @@
         <connection>scm:git:https://github.com/exist-db/exist.git</connection>
         <developerConnection>scm:git:https://github.com/exist-db/exist.git</developerConnection>
         <url>scm:git:https://github.com/exist-db/exist.git</url>
-      <tag>eXist-6.0.1</tag>
+      <tag>eXist-6.2.0</tag>
   </scm>
 
     <properties>
         <assemble.dir>${project.build.directory}/exist-docker-${project.version}-docker-dir</assemble.dir>
         <exist.uber.jar.filename>exist.uber.jar</exist.uber.jar.filename>
         <docker.tag>latest</docker.tag>
+        <docker.debug.tag>debug</docker.debug.tag>
     </properties>
 
     <dependencies>
@@ -185,7 +186,13 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
                                     <addHeader>false</addHeader>
-                                </transformer>&gt;
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/mailcap</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/mailcap.default</resource>
+                                </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                             </transformers>
                         </configuration>
@@ -196,18 +203,29 @@
             <plugin>
                 <groupId>io.fabric8</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                <version>0.38.1</version>
+                <version>0.40.3</version>
                 <configuration>
                   <verbose>true</verbose>
                     <images>
                         <image>
                             <name>existdb/existdb:%v</name>
-                            <alias>exist-ci</alias>
+                            <alias>exist</alias>
                             <build>
                                 <tags>
                                     <tag>${docker.tag}</tag>
                                 </tags>
                                 <dockerFile>${project.build.outputDirectory}/Dockerfile</dockerFile>
+                                <contextDir>${assemble.dir}</contextDir>
+                            </build>
+                        </image>
+                        <image>
+                            <name>existdb/existdb:%v-DEBUG</name>
+                            <alias>exist-debug</alias>
+                            <build>
+                                <tags>
+                                    <tag>${docker.debug.tag}</tag>
+                                </tags>
+                                <dockerFile>${project.build.outputDirectory}/Dockerfile-DEBUG</dockerFile>
                                 <contextDir>${assemble.dir}</contextDir>
                             </build>
                         </image>

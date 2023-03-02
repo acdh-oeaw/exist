@@ -33,13 +33,15 @@ import org.exist.storage.serializers.EXistOutputKeys;
 import org.exist.util.CharSlice;
 import org.exist.util.serializer.encodings.CharacterSet;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * Write XML to a writer. This class defines methods similar to SAX. It deals
  * with opening and closing tags, writing attributes and so on.
  * 
  * @author wolf
  */
-public class XMLWriter {
+public class XMLWriter implements SerializerWriter {
 
     private final static IllegalStateException EX_CHARSET_NULL = new IllegalStateException("Charset should never be null!");
     
@@ -51,7 +53,7 @@ public class XMLWriter {
 
     protected Writer writer = null;
 
-    protected CharacterSet charSet = null;
+    protected CharacterSet charSet;
 
     protected boolean tagIsOpen = false;
 
@@ -63,11 +65,11 @@ public class XMLWriter {
     
     protected Properties outputProperties;
 
-    private char[] charref = new char[10];
+    private final char[] charref = new char[10];
 
-    private static boolean[] textSpecialChars;
+    private static final boolean[] textSpecialChars;
 
-    private static boolean[] attrSpecialChars;
+    private static final boolean[] attrSpecialChars;
 
     private String defaultNamespace = "";
 
@@ -104,7 +106,7 @@ public class XMLWriter {
     }
 
     public XMLWriter() {
-        charSet = CharacterSet.getCharacterSet("UTF-8");
+        charSet = CharacterSet.getCharacterSet(UTF_8.name());
         if(charSet == null) {
             throw EX_CHARSET_NULL;
         }
@@ -122,12 +124,12 @@ public class XMLWriter {
      */
     public void setOutputProperties(final Properties properties) {
         if(properties == null) {
-            outputProperties = defaultProperties;
+            outputProperties = new Properties(defaultProperties);
         } else {
             outputProperties = properties;
         }
 
-        final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, "UTF-8");
+        final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, UTF_8.name());
         this.charSet = CharacterSet.getCharacterSet(encoding);
         if(this.charSet == null) {
             throw EX_CHARSET_NULL;
@@ -149,7 +151,7 @@ public class XMLWriter {
         return qnames;
     }
 
-    protected void reset() {
+    public void reset() {
         writer = null;
         resetObjectState();
     }
@@ -173,7 +175,7 @@ public class XMLWriter {
         resetObjectState();
     }
     
-    protected Writer getWriter() {
+    public Writer getWriter() {
         return writer;
     }
 
@@ -313,7 +315,7 @@ public class XMLWriter {
         }
     }
 
-    public void attribute(String qname, String value) throws TransformerException {
+    public void attribute(String qname, CharSequence value) throws TransformerException {
         try {
             if(!tagIsOpen) {
                     characters(value);
@@ -331,7 +333,7 @@ public class XMLWriter {
         }
     }
 
-    public void attribute(final QName qname, final String value) throws TransformerException {
+    public void attribute(final QName qname, final CharSequence value) throws TransformerException {
         try {
             if(!tagIsOpen) {
                 characters(value);
@@ -517,14 +519,14 @@ public class XMLWriter {
         }
 
         if(outputProperties == null) {
-            outputProperties = defaultProperties;
+            outputProperties = new Properties(defaultProperties);
         }
         declarationWritten = true;
         final String omitXmlDecl = outputProperties.getProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
         if("no".equals(omitXmlDecl)) {
             final String version = outputProperties.getProperty(OutputKeys.VERSION, "1.0");
             final String standalone = outputProperties.getProperty(OutputKeys.STANDALONE);
-            final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, "UTF-8");
+            final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, UTF_8.name());
             try {
                 writer.write("<?xml version=\"");
                 writer.write(version);

@@ -25,8 +25,10 @@ import org.exist.dom.QName;
 import org.exist.dom.memtree.DocumentBuilderReceiver;
 import org.exist.dom.memtree.DocumentImpl;
 import org.exist.dom.memtree.MemTreeBuilder;
+import org.exist.storage.serializers.EXistOutputKeys;
 import org.exist.util.serializer.XQuerySerializer;
 import org.exist.xquery.*;
+import org.exist.xquery.functions.array.ArrayType;
 import org.exist.xquery.functions.map.AbstractMapType;
 import org.exist.xquery.util.SerializerUtils;
 import org.exist.xquery.value.*;
@@ -40,6 +42,8 @@ import java.util.Properties;
 import static org.exist.Namespaces.XSLT_XQUERY_SERIALIZATION_NS;
 
 public class FunSerialize extends BasicFunction {
+
+    private final static String DEFAULT_ITEM_SEPARATOR = " ";
 
     public final static FunctionSignature[] signatures = {
         new FunctionSignature(
@@ -79,13 +83,17 @@ public class FunSerialize extends BasicFunction {
         try(final StringWriter writer = new StringWriter()) {
             final XQuerySerializer xqSerializer = new XQuerySerializer(context.getBroker(), outputProperties, writer);
 
-            Sequence seq = args[0];
+            final Sequence input = args[0];
             if (xqSerializer.normalize()) {
-                seq = normalize(this, context, seq);
+                final String itemSeparator = outputProperties.getProperty(EXistOutputKeys.ITEM_SEPARATOR, DEFAULT_ITEM_SEPARATOR);
+                final Sequence normalized = normalize(this, context, input, itemSeparator);
+                xqSerializer.serialize(normalized);
+            }
+            else {
+                xqSerializer.serialize(input);
             }
 
-            xqSerializer.serialize(seq);
-            return new StringValue(writer.toString());
+            return new StringValue(this, writer.toString());
         } catch (final IOException | SAXException e) {
             throw new XPathException(this, FnModule.SENR0001, e.getMessage());
         }
@@ -93,9 +101,9 @@ public class FunSerialize extends BasicFunction {
 
     public static Properties getSerializationProperties(final Expression callingExpr, final Item parametersItem) throws XPathException {
         final Properties outputProperties;
-        if(parametersItem.getType() == Type.MAP) {
+        if (parametersItem.getType() == Type.MAP) {
             outputProperties = SerializerUtils.getSerializationOptions(callingExpr, (AbstractMapType) parametersItem);
-        } else if(isSerializationParametersElement(parametersItem)) {
+        } else if (isSerializationParametersElement(parametersItem)) {
             outputProperties = new Properties();
             SerializerUtils.getSerializationOptions(callingExpr, (NodeValue) parametersItem, outputProperties);
         } else {
@@ -124,54 +132,72 @@ public class FunSerialize extends BasicFunction {
 
     /**
      * Sequence normalization as described in
-     * http://www.w3.org/TR/xslt-xquery-serialization-30/#serdm
+     * <a href="http://www.w3.org/TR/xslt-xquery-serialization-30/#serdm">XSLT and XQuery Serialization 3.0 - Sequence Normalization</a>.
      *
-     * @param input non-normalized sequence
-     * @param context current context
      * @param callingExpr the expression from which the function is called.
-     *                    needed for error reporting
-     * @return normalized sequence
-     * @throws XPathException in case of dynamic error
+     *                    Needed for error reporting
+     * @param context current context.
+     * @param input non-normalized sequence.
+     * @param itemSeparator the item separator placed between each item.
+     *
+     * @return normalized sequence.
+     *
+     * @throws XPathException in case of dynamic error.
      */
-    public static Sequence normalize(final Expression callingExpr, final XQueryContext context, final Sequence input) throws XPathException {
-        if (input.isEmpty())
-            // "If the sequence that is input to serialization is empty, create a sequence S1 that consists of a zero-length string."
-            {return StringValue.EMPTY_STRING;}
-        final ValueSequence temp = new ValueSequence(input.getItemCount());
+    public static Sequence normalize(final Expression callingExpr, final XQueryContext context, final Sequence input, final String itemSeparator) throws XPathException {
+        // "If the sequence that is input to serialization is empty, create a sequence S1 that consists of a zero-length string."
+        if (input.isEmpty()) {
+            return StringValue.EMPTY_STRING;
+        }
+        // flatten arrays
+        final ValueSequence step1 = new ValueSequence();
         for (final SequenceIterator i = input.iterate(); i.hasNext(); ) {
             final Item next = i.nextItem();
-            if (Type.subTypeOf(next.getType(), Type.NODE)) {
-                if (next.getType() == Type.ATTRIBUTE || next.getType() == Type.NAMESPACE || next.getType() == Type.FUNCTION_REFERENCE)
-                    {throw new XPathException(callingExpr, FnModule.SENR0001,
-                        "It is an error if an item in the sequence to serialize is an attribute node or a namespace node.");}
-                temp.add(next);
+            if (next.getType() == Type.ARRAY) {
+                final Sequence sequence = ArrayType.flatten(next);
+                for (final SequenceIterator si = sequence.iterate(); si.hasNext(); ) {
+                    step1.add(si.nextItem());
+                }
+            } else {
+                step1.add(next);
+            }
+        }
+
+        final ValueSequence step2 = new ValueSequence(step1.getItemCount());
+        for (final SequenceIterator i = step1.iterate(); i.hasNext(); ) {
+            final Item next = i.nextItem();
+            final int itemType = next.getType();
+            if (Type.subTypeOf(itemType, Type.NODE)) {
+                if (itemType == Type.ATTRIBUTE || itemType == Type.NAMESPACE || itemType == Type.FUNCTION_REFERENCE) {
+                    throw new XPathException(callingExpr, FnModule.SENR0001,
+                        "It is an error if an item in the sequence to serialize is an attribute node or a namespace node.");
+                }
+                step2.add(next);
             } else {
                 // atomic value
-                Item last = null;
-                if (!temp.isEmpty())
-                    {last = temp.itemAt(temp.getItemCount() - 1);}
-                if (last != null && last.getType() == Type.STRING)
-                    // "For each subsequence of adjacent strings in S2, copy a single string to the new sequence
-                    // equal to the values of the strings in the subsequence concatenated in order, each separated
-                    // by a single space."
-                    {((StringValue)last).append(" " + next.getStringValue());}
-                else
-                    // "For each item in S1, if the item is atomic, obtain the lexical representation of the item by
-                    // casting it to an xs:string and copy the string representation to the new sequence;"
-                    {temp.add(new StringValue(next.getStringValue()));}
+                // "For each item in S1, if the item is atomic, obtain the lexical representation of the item by
+                // casting it to an xs:string and copy the string representation to the new sequence;"
+                final StringValue stringRepresentation = new StringValue(callingExpr, next.getStringValue());
+                step2.add(stringRepresentation);
             }
         }
 
         context.pushDocumentContext();
         try {
             final MemTreeBuilder builder = context.getDocumentBuilder();
-            final DocumentBuilderReceiver receiver = new DocumentBuilderReceiver(builder, true);
-            for (final SequenceIterator i = temp.iterate(); i.hasNext(); ) {
+            final DocumentBuilderReceiver receiver = new DocumentBuilderReceiver(callingExpr, builder, true);
+            final String safeItemSeparator = itemSeparator == null ? "" : itemSeparator;
+            for (final SequenceIterator i = step2.iterate(); i.hasNext(); ) {
                 final Item next = i.nextItem();
                 if (Type.subTypeOf(next.getType(), Type.NODE)) {
                     next.copyTo(context.getBroker(), receiver);
                 } else {
-                    receiver.characters(next.getStringValue());
+                    final String stringValue = next.getStringValue();
+                    receiver.characters(stringValue);
+                }
+                // add itemSeparator if there is a next item
+                if (i.hasNext()) {
+                    receiver.characters(safeItemSeparator);
                 }
             }
             return (DocumentImpl)receiver.getDocument();

@@ -30,6 +30,8 @@ import org.exist.dom.QName;
 import org.exist.util.CharSlice;
 import org.exist.util.serializer.encodings.CharacterSet;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * Write PLAIN TEXT to a writer. This class defines methods similar to SAX.
  * It deals with opening and closing tags, writing attributes and so on: they
@@ -45,7 +47,7 @@ public class TEXTWriter extends XMLWriter {
     
     protected final static Properties defaultProperties = new Properties();
     
-    private char[] charref = new char[10];
+    private final char[] charref = new char[10];
     
     public TEXTWriter() {
         // empty
@@ -57,7 +59,7 @@ public class TEXTWriter extends XMLWriter {
     }
     
     @Override
-    protected void reset() {
+    public void reset() {
         super.reset();
     }
     
@@ -73,7 +75,7 @@ public class TEXTWriter extends XMLWriter {
         } else {
             outputProperties = properties;
         }
-        final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, "UTF-8");
+        final String encoding = outputProperties.getProperty(OutputKeys.ENCODING, UTF_8.name());
         charSet = CharacterSet.getCharacterSet(encoding);
     }
 
@@ -119,12 +121,12 @@ public class TEXTWriter extends XMLWriter {
     }
     
     @Override
-    public void attribute(final String qname, final String value) throws TransformerException {
+    public void attribute(final String qname, final CharSequence value) throws TransformerException {
         // empty
     }
     
     @Override
-    public void attribute(final QName qname, final String value) throws TransformerException {
+    public void attribute(final QName qname, final CharSequence value) throws TransformerException {
         // empty
     }
     

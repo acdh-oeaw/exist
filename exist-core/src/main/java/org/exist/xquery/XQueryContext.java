@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -78,6 +79,7 @@ import org.exist.security.PermissionDeniedException;
 import org.exist.security.Subject;
 import org.exist.source.*;
 import org.exist.stax.ExtendedXMLStreamReader;
+import org.exist.storage.BrokerPool;
 import org.exist.storage.DBBroker;
 import org.exist.storage.UpdateListener;
 import org.exist.storage.lock.Lock.LockMode;
@@ -96,12 +98,14 @@ import org.exist.xquery.util.SerializerUtils;
 import org.exist.xquery.value.*;
 import org.w3c.dom.Node;
 
+import static com.evolvedbinary.j8fu.OptionalUtil.or;
 import static com.evolvedbinary.j8fu.tuple.Tuple.Tuple;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 import static javax.xml.XMLConstants.XML_NS_PREFIX;
 import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
 import static org.exist.Namespaces.XML_NS;
+import static org.exist.util.MapUtil.HashMap;
 
 /**
  * The current XQuery execution context. Contains the static as well as the dynamic
@@ -203,6 +207,8 @@ public class XQueryContext implements BinaryValueManager, Context {
     private XMLGregorianCalendar calendar = null;
     private TimeZone implicitTimeZone = null;
 
+    private final Map<String, Sequence> cachedUriCollectionResults = new HashMap<>();
+
     /**
      * the watchdog object assigned to this query.
      */
@@ -290,6 +296,11 @@ public class XQueryContext implements BinaryValueManager, Context {
      * The default collation URI.
      */
     private String defaultCollation = Collations.UNICODE_CODEPOINT_COLLATION_URI;
+
+    /**
+     * The default language
+     */
+    private static final String DefaultLanguage = Locale.getDefault().getLanguage();
 
     /**
      * Default Collator. Will be null for the default unicode codepoint collation.
@@ -411,36 +422,84 @@ public class XQueryContext implements BinaryValueManager, Context {
      */
     @Nullable
     private HttpContext httpContext = null;
-
-    private final Map<QName, DecimalFormat> staticDecimalFormats = new HashMap<>();
     private static final QName UNNAMED_DECIMAL_FORMAT = new QName("__UNNAMED__", Function.BUILTIN_FUNCTION_NS);
 
+    private final Map<QName, DecimalFormat> staticDecimalFormats = HashMap(Tuple(UNNAMED_DECIMAL_FORMAT, DecimalFormat.UNNAMED));
+
+    // Only used for testing, e.g. {@link org.exist.test.runner.XQueryTestRunner}.
+    private Optional<ExistRepository> testRepository = Optional.empty();
+
+    /**
+     * Holds a list of any new XQuery Contexts that
+     * were created by the XQuery (owning this XQuery Context)
+     * dynamically importing, compiling, and/or evaluating modules.
+     *
+     * NOTE(AR) - This is needed to ensure that these "imported contexts" are
+     * also correctly reset and cleaned up when this XQuery is finished.
+     */
+    private Set<XQueryContext> importedContexts = null;
+
+    /**
+     * Holds a list of the {@link #runCleanupTasks(Predicate)} functions
+     * of the {@link #importedContexts}.
+     *
+     * NOTE(AR) - This is needed to ensure that these the user call
+     * {@link #reset()} or {@link #runCleanupTasks(Predicate)}
+     * in any order.
+     */
+    private List<Consumer<Predicate<Object>>> importedContextsCleanupTasksFns = null;
+
     public XQueryContext() {
-        profiler = new Profiler(null);
-        staticDecimalFormats.put(UNNAMED_DECIMAL_FORMAT, DecimalFormat.UNNAMED);
+        this(null, null, null);
     }
 
     public XQueryContext(final Configuration configuration) {
-        this();
-        this.configuration = configuration;
-        loadDefaults(configuration);
+        this(null, configuration, null);
     }
 
     public XQueryContext(final Database db) {
-        this(db, new Profiler(db));
+        this(db, null, null);
     }
 
-    public XQueryContext(final Database db, Profiler profiler) {
-        this();
+    public XQueryContext(final Database db, final Profiler profiler) {
+        this(db, null, profiler);
+    }
+
+    private XQueryContext(@Nullable final Database db, @Nullable final Configuration configuration, @Nullable final Profiler profiler) {
+        this(db, configuration, profiler, true);
+    }
+
+    protected XQueryContext(@Nullable final Database db, @Nullable final Configuration configuration, @Nullable final Profiler profiler, final boolean loadDefaults) {
         this.db = db;
-        loadDefaults(db.getConfiguration());
-        this.profiler = profiler;
+
+        // if needed, fallback to db.getConfiguration
+        if (configuration != null) {
+            this.configuration = configuration;
+        } else if (db != null) {
+            this.configuration = db.getConfiguration();
+        } else {
+            this.configuration = null;
+        }
+
+        // if needed, fallback to profiler for the db, or default profiler
+        if (profiler != null) {
+            this.profiler = profiler;
+        } else if (db != null) {
+            this.profiler = new Profiler(db);
+        } else {
+            this.profiler = new Profiler(null);
+        }
+
+        this.watchdog = new XQueryWatchDog(this);
+
+        // load configuration defaults
+        if (loadDefaults) {
+            loadDefaults(this.configuration);
+        }
     }
 
     public XQueryContext(final XQueryContext copyFrom) {
-        this();
-        this.db = copyFrom.db;
-        loadDefaultNS();
+        this(copyFrom.db, copyFrom.configuration, copyFrom.profiler);
 
         for (final String prefix : copyFrom.staticNamespaces.keySet()) {
             if (XML_NS_PREFIX.equals(prefix) || XMLNS_ATTRIBUTE.equals(prefix)) {
@@ -453,7 +512,6 @@ public class XQueryContext implements BinaryValueManager, Context {
                 ex.printStackTrace();
             }
         }
-        this.profiler = copyFrom.profiler;
     }
 
 
@@ -478,8 +536,26 @@ public class XQueryContext implements BinaryValueManager, Context {
         this.httpContext = httpContext;
     }
 
+    /**
+     * Set the EXPath repository used for testing,
+     * only should be called from {@link org.exist.test.runner.XQueryTestRunner}.
+     *
+     * @param testRepository the EXPath repository to use for test execution.
+     */
+    public void setTestRepository(final Optional<ExistRepository> testRepository) {
+        this.testRepository = testRepository;
+    }
+
+    /**
+     * Get the EXPath repository configured for the BrokerPool, if present.
+     *
+     * @return the EXPath repository if present.
+     */
     public Optional<ExistRepository> getRepository() {
-        return getBroker().getBrokerPool().getExpathRepo();
+        return or(
+                testRepository,
+            () -> Optional.ofNullable(getBroker()).map(DBBroker::getBrokerPool).flatMap(BrokerPool::getExpathRepo)
+        );
     }
 
     /**
@@ -493,10 +569,11 @@ public class XQueryContext implements BinaryValueManager, Context {
      * @throws XPathException if the namespace URI is invalid (XQST0046),
      *     if the module could not be loaded (XQST0059) or compiled (XPST0003)
      */
-    private Module resolveInEXPathRepository(final String namespace, final String prefix)
+    private @Nullable Module resolveInEXPathRepository(final String namespace, final String prefix)
             throws XPathException {
         // the repo and its eXist handler
         final Optional<ExistRepository> repo = getRepository();
+
         // try an internal module
         if (repo.isPresent()) {
             final Module jMod = repo.get().resolveJavaModule(namespace, this);
@@ -504,18 +581,20 @@ public class XQueryContext implements BinaryValueManager, Context {
                 return jMod;
             }
         }
+
         // try an eXist-specific module
-        Path resolved = null;
         if (repo.isPresent()) {
-            resolved = repo.get().resolveXQueryModule(namespace);
+            final Path resolved = repo.get().resolveXQueryModule(namespace);
+
             // use the resolved file or return null
-            if (resolved == null) {
-                return null;
+            if (resolved != null) {
+                // build a module object from the file
+                final Source src = new FileSource(resolved, false);
+                return compileOrBorrowModule(prefix, namespace, "", src);
             }
         }
-        // build a module object from the file
-        final Source src = new FileSource(resolved, false);
-        return compileOrBorrowModule(prefix, namespace, "", src);
+
+        return null;
     }
 
     /**
@@ -573,6 +652,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         this.dynamicOptions = from.dynamicOptions;
         this.staticOptions = from.staticOptions;
         this.db = from.db;
+        this.configuration = from.configuration;
         this.httpContext = from.httpContext;
     }
 
@@ -730,11 +810,11 @@ public class XQueryContext implements BinaryValueManager, Context {
         }
 
         if (XML_NS_PREFIX.equals(prefix) || XMLNS_ATTRIBUTE.equals(prefix)) {
-            throw new XPathException(ErrorCodes.XQST0070, "Namespace predefined prefix '" + prefix + "' can not be bound");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0070, "Namespace predefined prefix '" + prefix + "' can not be bound");
         }
 
         if (uri.equals(XML_NS)) {
-            throw new XPathException(ErrorCodes.XQST0070, "Namespace URI '" + uri + "' must be bound to the 'xml' prefix");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0070, "Namespace URI '" + uri + "' must be bound to the 'xml' prefix");
         }
 
         final String prevURI = staticNamespaces.get(prefix);
@@ -784,7 +864,7 @@ public class XQueryContext implements BinaryValueManager, Context {
 
                 //Forbids rebinding the *same* prefix in a *different* namespace in this *same* context
                 if (!uri.equals(prevURI)) {
-                    throw new XPathException(ErrorCodes.XQST0033, "Cannot bind prefix '" + prefix + "' to '" + uri + "' it is already bound to '" + prevURI + "'");
+                    throw new XPathException(rootExpression, ErrorCodes.XQST0033, "Cannot bind prefix '" + prefix + "' to '" + uri + "' it is already bound to '" + prevURI + "'");
                 }
             }
         }
@@ -937,7 +1017,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     public void setDefaultFunctionNamespace(final String uri) throws XPathException {
         //Not sure for the 2nd clause : eXist-db forces the function NS as default.
         if ((defaultFunctionNamespace != null) && !defaultFunctionNamespace.equals(Function.BUILTIN_FUNCTION_NS) && !defaultFunctionNamespace.equals(uri)) {
-            throw new XPathException(ErrorCodes.XQST0066, "Default function namespace is already set to: '" + defaultFunctionNamespace + "'");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0066, "Default function namespace is already set to: '" + defaultFunctionNamespace + "'");
         }
         defaultFunctionNamespace = uri;
     }
@@ -951,7 +1031,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     public void setDefaultElementNamespaceSchema(final String uri) throws XPathException {
         // eXist forces the empty element NS as default.
         if (!defaultElementNamespaceSchema.equals(AnyURIValue.EMPTY_URI)) {
-            throw new XPathException(ErrorCodes.XQST0066, "Default function namespace schema is already set to: '" + defaultElementNamespaceSchema.getStringValue() + "'");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0066, "Default function namespace schema is already set to: '" + defaultElementNamespaceSchema.getStringValue() + "'");
         }
         defaultElementNamespaceSchema = new AnyURIValue(uri);
     }
@@ -965,7 +1045,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     public void setDefaultElementNamespace(final String uri, @Nullable final String schema) throws XPathException {
         // eXist forces the empty element NS as default.
         if (!defaultElementNamespace.equals(AnyURIValue.EMPTY_URI)) {
-            throw new XPathException(ErrorCodes.XQST0066,
+            throw new XPathException(rootExpression, ErrorCodes.XQST0066,
                     "Default element namespace is already set to: '" + defaultElementNamespace.getStringValue() + "'");
         }
         defaultElementNamespace = new AnyURIValue(uri);
@@ -986,15 +1066,15 @@ public class XQueryContext implements BinaryValueManager, Context {
         try {
             uriTest = new URI(uri);
         } catch (final URISyntaxException e) {
-            throw new XPathException(ErrorCodes.XQST0038, "Unknown collation : '" + uri + "'");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0038, "Unknown collation : '" + uri + "'");
         }
 
         if (uri.startsWith(Collations.EXIST_COLLATION_URI) || uri.charAt(0) == '?' || uriTest.isAbsolute()) {
-            defaultCollator = Collations.getCollationFromURI(uri);
+            defaultCollator = Collations.getCollationFromURI(uri, rootExpression);
             defaultCollation = uri;
         } else {
             String absUri = getBaseURI().getStringValue() + uri;
-            defaultCollator = Collations.getCollationFromURI(absUri);
+            defaultCollator = Collations.getCollationFromURI(absUri, rootExpression);
             defaultCollation = absUri;
         }
     }
@@ -1009,7 +1089,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         if (uri == null) {
             return defaultCollator;
         }
-        return Collations.getCollationFromURI(uri);
+        return Collations.getCollationFromURI(uri, rootExpression);
     }
 
     @Override
@@ -1112,7 +1192,7 @@ public class XQueryContext implements BinaryValueManager, Context {
                 getBroker().getAllXMLResources(ndocs);
             } catch (final PermissionDeniedException | LockException e) {
                 LOG.warn(e);
-                throw new XPathException("Permission denied to read resource all resources: " + e.getMessage(), e);
+                throw new XPathException(rootExpression, "Permission denied to read resource all resources: " + e.getMessage(), e);
             }
         } else {
             for (final XmldbURI staticDocumentPath : staticDocumentPaths) {
@@ -1229,7 +1309,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             reader = new InMemoryXMLStreamReader(ownerDoc, ownerDoc);
         } else {
             final NodeProxy proxy = (NodeProxy) nv;
-            reader = getBroker().newXMLStreamReader(new NodeProxy(proxy.getOwnerDocument(), NodeId.DOCUMENT_NODE, proxy.getOwnerDocument().getFirstChildAddress()), false);
+            reader = getBroker().newXMLStreamReader(new NodeProxy(rootExpression, proxy.getOwnerDocument(), NodeId.DOCUMENT_NODE, proxy.getOwnerDocument().getFirstChildAddress()), false);
         }
         return reader;
     }
@@ -1350,6 +1430,13 @@ public class XQueryContext implements BinaryValueManager, Context {
 
     @Override
     public void reset(final boolean keepGlobals) {
+        if (importedContexts != null) {
+            for (final XQueryContext importedContext : importedContexts) {
+                importedContext.reset(keepGlobals);
+            }
+            importedContexts = null;
+        }
+
         setRealUser(null);
 
         if (this.pushedUserFromHttpSession) {
@@ -1397,6 +1484,8 @@ public class XQueryContext implements BinaryValueManager, Context {
         fragmentStack = new ArrayDeque<>();
         callStack.clear();
         protectedDocuments = null;
+
+        cachedUriCollectionResults.clear();
 
         if (!keepGlobals) {
             globalVariables.clear();
@@ -1637,7 +1726,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             }
             //instantiateModule( namespaceURI, (Class<Module>)mClass );
             // INOTE: expathrepo
-            module = instantiateModule(namespaceURI, (Class<Module>) mClass, (Map<String, Map<String, List<? extends Object>>>) getBroker().getConfiguration().getProperty(PROPERTY_MODULE_PARAMETERS));
+            module = instantiateModule(namespaceURI, (Class<Module>) mClass, (Map<String, Map<String, List<? extends Object>>>) getConfiguration().getProperty(PROPERTY_MODULE_PARAMETERS));
             if (LOG.isDebugEnabled()) {
                 LOG.debug("module {} loaded successfully.", module.getNamespaceURI());
             }
@@ -1734,7 +1823,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         final FunctionSignature signature = function.getSignature();
         final FunctionId functionKey = signature.getFunctionId();
         if (declaredFunctions.containsKey(functionKey)) {
-            throw new XPathException(ErrorCodes.XQST0034, "Function " +  signature.getName().toURIQualifiedName() + '#' + signature.getArgumentCount() + " is already defined.");
+            throw new XPathException(function, ErrorCodes.XQST0034, "Function " +  signature.getName().toURIQualifiedName() + '#' + signature.getArgumentCount() + " is already defined.");
         } else {
             declaredFunctions.put(functionKey, function);
         }
@@ -1792,7 +1881,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         try {
             return declareVariable(QName.parse(this, qname, null), value);
         } catch (final QName.IllegalQNameException e) {
-            throw new XPathException(ErrorCodes.XPST0081, "No namespace defined for prefix: " + qname);
+            throw new XPathException(rootExpression, ErrorCodes.XPST0081, "No namespace defined for prefix: " + qname);
         }
     }
 
@@ -1811,7 +1900,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             return var;
         }
 
-        final Sequence val = XPathUtil.javaObjectToXPath(value, this);
+        final Sequence val = XPathUtil.javaObjectToXPath(value, this, rootExpression);
         var = globalVariables.get(qn);
 
         if (var == null) {
@@ -1832,13 +1921,13 @@ public class XQueryContext implements BinaryValueManager, Context {
 
             //Type.EMPTY is *not* a subtype of other types ; checking cardinality first
             if (!var.getSequenceType().getCardinality().isSuperCardinalityOrEqualOf(actualCardinality)) {
-                throw new XPathException("XPTY0004: Invalid cardinality for variable $" + var.getQName() + ". Expected " + var.getSequenceType().getCardinality().getHumanDescription() + ", got " + actualCardinality.getHumanDescription());
+                throw new XPathException(rootExpression, "XPTY0004: Invalid cardinality for variable $" + var.getQName() + ". Expected " + var.getSequenceType().getCardinality().getHumanDescription() + ", got " + actualCardinality.getHumanDescription());
             }
 
             //TODO : ignore nodes right now ; they are returned as xs:untypedAtomicType
             if (!Type.subTypeOf(var.getSequenceType().getPrimaryType(), Type.NODE)) {
                 if (!val.isEmpty() && !Type.subTypeOf(val.getItemType(), var.getSequenceType().getPrimaryType())) {
-                    throw new XPathException("XPTY0004: Invalid type for variable $" + var.getQName() + ". Expected " + Type.getTypeName(var.getSequenceType().getPrimaryType()) + ", got " + Type.getTypeName(val.getItemType()));
+                    throw new XPathException(rootExpression, "XPTY0004: Invalid type for variable $" + var.getQName() + ". Expected " + Type.getTypeName(var.getSequenceType().getPrimaryType()) + ", got " + Type.getTypeName(val.getItemType()));
                 }
 
                 //Here is an attempt to process the nodes correctly
@@ -1846,7 +1935,7 @@ public class XQueryContext implements BinaryValueManager, Context {
 
                 //Same as above : we probably may factorize
                 if (!val.isEmpty() && !Type.subTypeOf(val.getItemType(), var.getSequenceType().getPrimaryType())) {
-                    throw new XPathException("XPTY0004: Invalid type for variable $" + var.getQName() + ". Expected " + Type.getTypeName(var.getSequenceType().getPrimaryType()) + ", got " + Type.getTypeName(val.getItemType()));
+                    throw new XPathException(rootExpression, "XPTY0004: Invalid type for variable $" + var.getQName() + ". Expected " + Type.getTypeName(var.getSequenceType().getPrimaryType()) + ", got " + Type.getTypeName(val.getItemType()));
                 }
 
             }
@@ -1863,7 +1952,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             final QName qn = QName.parse(this, name, null);
             return resolveVariable(qn);
         } catch (final QName.IllegalQNameException e) {
-            throw new XPathException(ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
+            throw new XPathException(rootExpression, ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
         }
     }
 
@@ -1897,7 +1986,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         }
 
         //if (var == null)
-        //  throw new XPathException("variable $" + qname + " is not bound");
+        //  throw new XPathException(rootExpression, "variable $" + qname + " is not bound");
         return var;
     }
 
@@ -2026,9 +2115,6 @@ public class XQueryContext implements BinaryValueManager, Context {
     }
 
     public Configuration getConfiguration() {
-        if (db != null) {
-            return db.getConfiguration();
-        }
         return configuration;
     }
 
@@ -2082,7 +2168,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     @Override
     public MemTreeBuilder getDocumentBuilder() {
         if (documentBuilder == null) {
-            documentBuilder = new MemTreeBuilder(this);
+            documentBuilder = new MemTreeBuilder(rootExpression, this);
             documentBuilder.startDocument();
         }
         return documentBuilder;
@@ -2091,7 +2177,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     @Override
     public MemTreeBuilder getDocumentBuilder(final boolean explicitCreation) {
         if (documentBuilder == null) {
-            documentBuilder = new MemTreeBuilder(this);
+            documentBuilder = new MemTreeBuilder(rootExpression, this);
             documentBuilder.startDocument(explicitCreation);
         }
         return documentBuilder;
@@ -2178,7 +2264,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         return watchdog;
     }
 
-    private static final MemTreeBuilder NULL_DOCUMENT_BUILDER = new MemTreeBuilder();
+    private static final MemTreeBuilder NULL_DOCUMENT_BUILDER = new MemTreeBuilder((Expression) null);
 
     @Override
     public void pushDocumentContext() {
@@ -2250,7 +2336,7 @@ public class XQueryContext implements BinaryValueManager, Context {
         // is then undefined, and any attempt to use its value may result in
         // an error [err:XPST0001].
 //        if ((baseURI == null) || baseURI.equals(AnyURIValue.EMPTY_URI)) {
-//            //throw new XPathException(ErrorCodes.XPST0001, "Base URI of the static context  has not been assigned a value.");
+//            //throw new XPathException(rootExpression, ErrorCodes.XPST0001, "Base URI of the static context  has not been assigned a value.");
 //            // We catch and resolve this to the XmlDbURI.ROOT_COLLECTION_URI
 //            // at least in DocumentImpl so maybe we should do it here./ljo
 //        }
@@ -2349,7 +2435,7 @@ public class XQueryContext implements BinaryValueManager, Context {
      * @param var       only clear variables after this variable, or null
      * @param resultSeq the result sequence
      */
-    public void popLocalVariables(@Nullable final LocalVariable var, final Sequence resultSeq) {
+    public void popLocalVariables(@Nullable final LocalVariable var, @Nullable final Sequence resultSeq) {
         if (var != null) {
             // clear all variables registered after var. they should be out of scope.
             LocalVariable outOfScope = var.after;
@@ -2415,11 +2501,11 @@ public class XQueryContext implements BinaryValueManager, Context {
             throws XPathException {
 
         if (XML_NS_PREFIX.equals(prefix) || XMLNS_ATTRIBUTE.equals(prefix)) {
-            throw new XPathException(ErrorCodes.XQST0070, "The prefix declared for a module import must not be 'xml' or 'xmlns'.");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0070, "The prefix declared for a module import must not be 'xml' or 'xmlns'.");
         }
 
         if (namespaceURI != null && namespaceURI.isEmpty()) {
-            throw new XPathException(ErrorCodes.XQST0088, "The first URILiteral in a module import must be of nonzero length.");
+            throw new XPathException(rootExpression, ErrorCodes.XQST0088, "The first URILiteral in a module import must be of nonzero length.");
         }
 
         Module[] modules = null;
@@ -2469,7 +2555,6 @@ public class XQueryContext implements BinaryValueManager, Context {
                         modules[modules.length - 1] = module;
                     }
                 }
-
 
             } // NOTE: expathrepo related, closes the EXPath else (if module != null)
         }
@@ -2558,19 +2643,19 @@ public class XQueryContext implements BinaryValueManager, Context {
 
     protected XPathException moduleLoadException(final String message, final String moduleLocation)
             throws XPathException {
-        return new XPathException(ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation)));
+        return new XPathException(rootExpression, ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation)));
     }
 
     protected XPathException moduleLoadException(final String message, final String moduleLocation, final Exception e)
             throws XPathException {
-        return new XPathException(ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation)), e);
+        return new XPathException(rootExpression, ErrorCodes.XQST0059, message, new ValueSequence(new StringValue(moduleLocation)), e);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public String getModuleLocation(final String namespaceURI) {
         final Map<String, String> moduleMap =
-                (Map) getBroker().getConfiguration().getProperty(PROPERTY_STATIC_MODULE_MAP);
+                (Map<String, String>) getConfiguration().getProperty(PROPERTY_STATIC_MODULE_MAP);
         return moduleMap.get(namespaceURI);
     }
 
@@ -2578,7 +2663,7 @@ public class XQueryContext implements BinaryValueManager, Context {
     @Override
     public Iterator<String> getMappedModuleURIs() {
         final Map<String, String> moduleMap =
-                (Map) getBroker().getConfiguration().getProperty(PROPERTY_STATIC_MODULE_MAP);
+                (Map<String, String>) getConfiguration().getProperty(PROPERTY_STATIC_MODULE_MAP);
         return moduleMap.keySet().iterator();
     }
 
@@ -2649,7 +2734,7 @@ public class XQueryContext implements BinaryValueManager, Context {
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(parser.getErrorMessage());
                     }
-                    throw new XPathException(ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + parser.getErrorMessage());
+                    throw new XPathException(rootExpression, ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + parser.getErrorMessage());
                 }
 
                 final AST ast = parser.getAST();
@@ -2658,13 +2743,13 @@ public class XQueryContext implements BinaryValueManager, Context {
                 astParser.xpath(ast, path);
 
                 if (astParser.foundErrors()) {
-                    throw new XPathException(ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + astParser.getErrorMessage(), astParser.getLastException());
+                    throw new XPathException(rootExpression, ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + astParser.getErrorMessage(), astParser.getLastException());
                 }
 
                 modExternal.setRootExpression(path);
 
                 if (namespaceURI != null && !modExternal.getNamespaceURI().equals(namespaceURI)) {
-                    throw new XPathException(ErrorCodes.XQST0059, "namespace URI declared by module (" + modExternal.getNamespaceURI() + ") does not match namespace URI in import statement, which was: " + namespaceURI);
+                    throw new XPathException(rootExpression, ErrorCodes.XQST0059, "namespace URI declared by module (" + modExternal.getNamespaceURI() + ") does not match namespace URI in import statement, which was: " + namespaceURI);
                 }
 
                 // Set source information on module context
@@ -2680,7 +2765,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             } catch (final RecognitionException e) {
                 throw new XPathException(e.getLine(), e.getColumn(), ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + e.getMessage());
             } catch (final TokenStreamException e) {
-                throw new XPathException(ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + e.getMessage(), e);
+                throw new XPathException(rootExpression, ErrorCodes.XPST0003, "error found while loading module from " + location + ": " + e.getMessage(), e);
             } catch (final XPathException e) {
                 e.prependMessage("Error while loading module " + location + ": ");
                 throw e;
@@ -2786,6 +2871,29 @@ public class XQueryContext implements BinaryValueManager, Context {
         staticDecimalFormats.put(qnDecimalFormat, decimalFormat);
     }
 
+    public Map<String, Sequence> getCachedUriCollectionResults() {
+        return cachedUriCollectionResults;
+    }
+
+    /**
+     * Add a reference to an additional XQuery Context that
+     * was created by the XQuery (owning this XQuery Context)
+     * dynamically importing, compiling, and/or evaluating modules.
+     *
+     * NOTE(AR) - This is needed to ensure that these "imported contexts" are
+     * also correctly reset and cleaned up when this XQuery is finished.
+     *
+     * @param importedContext the dynamically created content for importing a module.
+     */
+    public void addImportedContext(final XQueryContext importedContext) {
+        if (importedContexts == null) {
+            importedContexts = new HashSet<>();
+            importedContextsCleanupTasksFns = new ArrayList<>();
+        }
+        importedContexts.add(importedContext);
+        importedContextsCleanupTasksFns.add(importedContext::runCleanupTasks);
+    }
+
     /**
      * Save state
      */
@@ -2864,10 +2972,10 @@ public class XQueryContext implements BinaryValueManager, Context {
         try {
             qn = QName.parse(this, name, defaultFunctionNamespace);
         } catch (final QName.IllegalQNameException e) {
-            throw new XPathException(ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
+            throw new XPathException(rootExpression, ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
         }
 
-        final Option option = new Option(qn, value);
+        final Option option = new Option(rootExpression, qn, value);
 
         //if the option exists, remove it so we can add the new option
         for (int i = 0; i < options.size(); i++) {
@@ -2940,32 +3048,32 @@ public class XQueryContext implements BinaryValueManager, Context {
         try {
             qname = QName.parse(this, name);
         } catch (final QName.IllegalQNameException e) {
-            throw new XPathException(ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
+            throw new XPathException(rootExpression, ErrorCodes.XPST0081, "No namespace defined for prefix " + name);
         }
 
         if (qname.getNamespaceURI().isEmpty()) {
-            throw new XPathException("XPST0081: pragma's ('" + name + "') namespace URI is empty");
+            throw new XPathException(rootExpression, "XPST0081: pragma's ('" + name + "') namespace URI is empty");
         } else if (Namespaces.EXIST_NS.equals(qname.getNamespaceURI())) {
             contents = StringValue.trimWhitespace(contents);
 
             if (TimerPragma.TIMER_PRAGMA.equals(qname)) {
-                return new TimerPragma(qname, contents);
+                return new TimerPragma(rootExpression, qname, contents);
             }
 
             if (Optimize.OPTIMIZE_PRAGMA.equals(qname)) {
-                return new Optimize(this, qname, contents, true);
+                return new Optimize(rootExpression, this, qname, contents, true);
             }
 
             if (ForceIndexUse.EXCEPTION_IF_INDEX_NOT_USED_PRAGMA.equals(qname)) {
-                return new ForceIndexUse(qname, contents);
+                return new ForceIndexUse(rootExpression, qname, contents);
             }
 
             if (ProfilePragma.PROFILING_PRAGMA.equals(qname)) {
-                return new ProfilePragma(qname, contents);
+                return new ProfilePragma(rootExpression, qname, contents);
             }
 
             if (NoIndexPragma.NO_INDEX_PRAGMA.equals(qname)) {
-                return new NoIndexPragma(qname, contents);
+                return new NoIndexPragma(rootExpression, qname, contents);
             }
         }
 
@@ -2978,12 +3086,12 @@ public class XQueryContext implements BinaryValueManager, Context {
             final DocumentImpl targetDoc = getBroker().storeTempResource(doc);
 
             if (targetDoc == null) {
-                throw new XPathException("Internal error: failed to store temporary doc fragment");
+                throw new XPathException(rootExpression, "Internal error: failed to store temporary doc fragment");
             }
             LOG.warn("Stored: {}: {}", targetDoc.getDocId(), targetDoc.getURI(), new Throwable());
             return targetDoc;
         } catch (final EXistException | LockException | PermissionDeniedException e) {
-            throw new XPathException(TEMP_STORE_ERROR, e);
+            throw new XPathException(rootExpression, TEMP_STORE_ERROR, e);
         }
     }
 
@@ -3000,12 +3108,10 @@ public class XQueryContext implements BinaryValueManager, Context {
     /**
      * Load the default prefix/namespace mappings table and set up internal functions.
      *
-     * @param config the configuration
+     * @param config the configuration if available
      */
     @SuppressWarnings("unchecked")
-    void loadDefaults(final Configuration config) {
-        this.watchdog = new XQueryWatchDog(this);
-
+    void loadDefaults(@Nullable final Configuration config) {
         /*
         SymbolTable syms = broker.getSymbols();
         String[] pfx = syms.defaultPrefixList();
@@ -3021,57 +3127,59 @@ public class XQueryContext implements BinaryValueManager, Context {
 
         loadDefaultNS();
 
-        // Switch: enable optimizer
-        Object param = config.getProperty(PROPERTY_ENABLE_QUERY_REWRITING);
-        enableOptimizer = (param != null) && "yes".equals(param.toString());
+        if (config != null) {
 
-        // Switch: Backward compatibility
-        param = config.getProperty(PROPERTY_XQUERY_BACKWARD_COMPATIBLE);
-        backwardsCompatible = (param == null) || "yes".equals(param.toString());
+            // Switch: enable optimizer
+            String param = config.getProperty(PROPERTY_ENABLE_QUERY_REWRITING, "no");
+            this.enableOptimizer = "yes".equals(param);
 
-        // Switch: raiseErrorOnFailedRetrieval
-        final Boolean option = ((Boolean) config.getProperty(PROPERTY_XQUERY_RAISE_ERROR_ON_FAILED_RETRIEVAL));
-        raiseErrorOnFailedRetrieval = (option != null) && option;
+            // Switch: Backward compatibility
+            param = config.getProperty(PROPERTY_XQUERY_BACKWARD_COMPATIBLE, "yes");
+            this.backwardsCompatible = "yes".equals(param);
 
-        // Get map of built-in modules
-        final Map<String, Class<Module>> builtInModules = (Map) config.getProperty(PROPERTY_BUILT_IN_MODULES);
+            // Switch: raiseErrorOnFailedRetrieval
+            final Boolean option = config.getProperty(PROPERTY_XQUERY_RAISE_ERROR_ON_FAILED_RETRIEVAL, Boolean.FALSE);
+            this.raiseErrorOnFailedRetrieval = option;
 
-        if (builtInModules != null) {
+            // Get map of built-in modules
+            final Map<String, Class<Module>> builtInModules = (Map<String, Class<Module>>) config.getProperty(PROPERTY_BUILT_IN_MODULES);
+            if (builtInModules != null) {
 
-            // Iterate on all map entries
-            for (final Map.Entry<String, Class<Module>> entry : builtInModules.entrySet()) {
+                // Iterate on all map entries
+                for (final Map.Entry<String, Class<Module>> entry : builtInModules.entrySet()) {
 
-                // Get URI and class
-                final String namespaceURI = entry.getKey();
-                final Class<Module> moduleClass = entry.getValue();
+                    // Get URI and class
+                    final String namespaceURI = entry.getKey();
+                    final Class<Module> moduleClass = entry.getValue();
 
-                // first check if the module has already been loaded in the parent context
-                final Module[] modules = getModules(namespaceURI);
-                Module foundModule = null;
-                if (modules != null) {
-                    for (final Module module : modules) {
-                        if (moduleClass.equals(module.getClass())) {
-                            foundModule = module;
-                            break;
+                    // first check if the module has already been loaded in the parent context
+                    final Module[] modules = getModules(namespaceURI);
+                    Module foundModule = null;
+                    if (modules != null) {
+                        for (final Module module : modules) {
+                            if (moduleClass.equals(module.getClass())) {
+                                foundModule = module;
+                                break;
+                            }
                         }
                     }
-                }
 
 
-                if (foundModule == null) {
-                    // Module does not exist yet, instantiate
-                    instantiateModule(namespaceURI, moduleClass,
-                            (Map<String, Map<String, List<? extends Object>>>) config.getProperty(PROPERTY_MODULE_PARAMETERS));
+                    if (foundModule == null) {
+                        // Module does not exist yet, instantiate
+                        instantiateModule(namespaceURI, moduleClass,
+                                (Map<String, Map<String, List<? extends Object>>>) config.getProperty(PROPERTY_MODULE_PARAMETERS));
 
-                } else if (getPrefixForURI(namespaceURI) == null && !foundModule.getDefaultPrefix().isEmpty()) {
+                    } else if (getPrefixForURI(namespaceURI) == null && !foundModule.getDefaultPrefix().isEmpty()) {
 
-                    // make sure the namespaces of default modules are known,
-                    // even if they were imported in a parent context
-                    try {
-                        declareNamespace(foundModule.getDefaultPrefix(), foundModule.getNamespaceURI());
+                        // make sure the namespaces of default modules are known,
+                        // even if they were imported in a parent context
+                        try {
+                            declareNamespace(foundModule.getDefaultPrefix(), foundModule.getNamespaceURI());
 
-                    } catch (final XPathException e) {
-                        LOG.warn("Internal error while loading default modules: {}", e.getMessage(), e);
+                        } catch (final XPathException e) {
+                            LOG.warn("Internal error while loading default modules: {}", e.getMessage(), e);
+                        }
                     }
                 }
             }
@@ -3125,8 +3233,8 @@ public class XQueryContext implements BinaryValueManager, Context {
         if (updateListener != null) {
             final DBBroker broker = getBroker();
             broker.getBrokerPool().getNotificationService().unsubscribe(updateListener);
+            updateListener = null;
         }
-        updateListener = null;
     }
 
     @Override
@@ -3170,7 +3278,7 @@ public class XQueryContext implements BinaryValueManager, Context {
             final String[] pair = Option.parseKeyValuePair(content);
 
             if (pair == null) {
-                throw new XPathException("Unknown parameter found in " + pragma.getQName().getStringValue()
+                throw new XPathException(rootExpression, "Unknown parameter found in " + pragma.getQName().getStringValue()
                         + ": '" + content + "'");
             }
 
@@ -3290,7 +3398,7 @@ public class XQueryContext implements BinaryValueManager, Context {
 
     @Override
     public String getCacheClass() {
-        return (String) getBroker().getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY);
+        return (String) getConfiguration().getProperty(Configuration.BINARY_CACHE_CLASS_PROPERTY);
     }
 
     public void destroyBinaryValue(final BinaryValue value) {
@@ -3317,6 +3425,11 @@ public class XQueryContext implements BinaryValueManager, Context {
         this.source = source;
     }
 
+    @Override
+    public String getDefaultLanguage() {
+        return DefaultLanguage;
+    }
+
     /**
      * NOTE: the {@link #unsubscribe()} method can be called
      * from {@link org.exist.storage.NotificationService#unsubscribe(UpdateListener)}
@@ -3330,7 +3443,7 @@ public class XQueryContext implements BinaryValueManager, Context {
          *
          * The AtomicReference enables us to quickly clear the listeners
          * in #unsubscribe() and maintain happens-before integrity whilst
-         * unsubcribing them. The CopyOnWriteArrayList allows
+         * unsubscribing them. The CopyOnWriteArrayList allows
          * us to add listeners whilst iterating over a snapshot
          * of existing iterators in other methods.
          */
@@ -3348,7 +3461,8 @@ public class XQueryContext implements BinaryValueManager, Context {
         @Override
         public void unsubscribe() {
             List<UpdateListener> prev = listeners.get();
-            while (!listeners.compareAndSet(prev, new CopyOnWriteArrayList<>())) {
+            final List<UpdateListener> next = new CopyOnWriteArrayList<>();
+            while (!listeners.compareAndSet(prev, next)) {
                 prev = listeners.get();
             }
 
@@ -3382,6 +3496,13 @@ public class XQueryContext implements BinaryValueManager, Context {
 
     @Override
     public void runCleanupTasks(final Predicate<Object> predicate) {
+        if (importedContextsCleanupTasksFns != null) {
+            for (final Consumer<Predicate<Object>> importedContextsCleanupTasksFn : importedContextsCleanupTasksFns) {
+                importedContextsCleanupTasksFn.accept(predicate);
+            }
+            importedContextsCleanupTasksFns = null;
+        }
+
         for (final CleanupTask cleanupTask : cleanupTasks) {
             try {
                 cleanupTask.cleanup(this, predicate);
@@ -3436,4 +3557,109 @@ public class XQueryContext implements BinaryValueManager, Context {
             return new HttpContext(request, response, newSession);
         }
     }
+
+    @Override public String toString() {
+        return getStringValue();
+    }
+
+    public String getStringValue() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append('{');
+
+        sb.append("dynamicDocuments: {");
+        if (dynamicDocuments != null) {
+            for (final String key : dynamicDocuments.keySet()) {
+                sb.append(key).append("-> ");
+                sb.append(dynamicDocuments.get(key));
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("dynamicTextResources: {");
+        if (dynamicTextResources != null) {
+            for (final Map.Entry<Tuple2<String, Charset>,  QuadFunctionE<DBBroker, Txn, String, Charset, Reader, XPathException>> entry : dynamicTextResources.entrySet()) {
+                sb.append(entry.getKey()).append("-> ").append(entry.getValue());
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("dynamicCollections: {");
+        if (dynamicCollections != null) {
+            for (final Map.Entry<String,
+                    TriFunctionE<DBBroker, Txn, String, Sequence, XPathException>> entry : dynamicCollections.entrySet()) {
+                sb.append(entry.getKey()).append("-> ").append(entry.getValue());
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("baseURI: ");
+        try {
+            sb.append(getBaseURI()).append('\n');
+        } catch (final XPathException e) {
+            sb.append("?");
+        }
+
+        sb.append("inScopePrefixes: {");
+        if (inScopePrefixes != null) {
+            for (final Map.Entry<String, String> entry : inScopePrefixes.entrySet()) {
+                sb.append(entry.getKey()).append("-> ").append(entry.getValue());
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("inScopeNamespaces: {");
+        if (inScopeNamespaces != null) {
+            for (final Map.Entry<String, String> entry : inScopeNamespaces.entrySet()) {
+                sb.append(entry.getKey()).append("-> ").append(entry.getValue());
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("modules: {");
+        if (modules != null) {
+            for (final Map.Entry<String, Module[]> entry : modules.entrySet()) {
+                sb.append(entry.getKey()).append("-> ");
+                for (final Module module : modules.get(entry.getKey())) {
+                    sb.append("namespaceURI: ").append(module.getNamespaceURI()).append('\n');
+                    sb.append("defaultPrefix: ").append(module.getDefaultPrefix()).append('\n');
+                    sb.append("description: ").append(module.getDescription()).append('\n');
+                    for (final Iterator<QName> it = module.getGlobalVariables(); it.hasNext(); ) {
+                        final QName qName = it.next();
+                        sb.append(qName).append(';');
+                    }
+                }
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append("allModules: {");
+        if (allModules != null) {
+            for (final Map.Entry<String, Module[]> entry : allModules.entrySet()) {
+                sb.append(entry.getKey()).append("-> ");
+                for (final Module module : allModules.get(entry.getKey())) {
+                    sb.append("namespaceURI: ").append(module.getNamespaceURI()).append('\n');
+                    sb.append("defaultPrefix: ").append(module.getDefaultPrefix()).append('\n');
+                    sb.append("description: ").append(module.getDescription()).append('\n');
+                    for (final Iterator<QName> it = module.getGlobalVariables(); it.hasNext(); ) {
+                        final QName qName = it.next();
+                        sb.append(qName).append(';');
+                    }
+                }
+            }
+        }
+        sb.append('}');
+        sb.append('\n');
+
+        sb.append('}');
+
+        return sb.toString();
+    }
+
+
 }

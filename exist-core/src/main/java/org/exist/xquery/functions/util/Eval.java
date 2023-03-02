@@ -404,14 +404,15 @@ public class Eval extends BasicFunction {
 
                         final Sequence seq;
                         if (xqSerializer.normalize()) {
-                            seq = FunSerialize.normalize(this, context, result);
+                            // TODO(JL): should this not be changed to DEFAULT_ITEM_SEPARATOR
+                            seq = FunSerialize.normalize(this, context, result, null);
                         } else {
                             seq = result;
                         }
 
                         xqSerializer.serialize(seq);
 
-                        return new StringValue(writer.toString());
+                        return new StringValue(this, writer.toString());
 
                     } catch (final IOException | SAXException e) {
                         throw new XPathException(this, FnModule.SENR0001, e.getMessage());
@@ -438,7 +439,7 @@ public class Eval extends BasicFunction {
     private void cleanup(final XQueryContext evalContext, final XQueryContext innerContext, final DocumentSet oldDocs,
             final LocalVariable mark, final Item expr, final Sequence resultSequence) {
         if (innerContext != evalContext) {
-            innerContext.reset(true);
+            evalContext.addImportedContext(innerContext);
         }
 
         if (oldDocs != null) {
@@ -476,7 +477,7 @@ public class Eval extends BasicFunction {
             for (int i = 0; i < sequence.getItemCount(); i++) {
                 //if (sequence.itemAt(i) instanceof StringValue) {
                 if (Type.subTypeOf(sequence.itemAt(i).getType(), Type.STRING)) {
-                    newSeq.add(new StringValue(((StringValue) sequence.itemAt(i)).getStringValue(true)));
+                    newSeq.add(new StringValue(this, ((StringValue) sequence.itemAt(i)).getStringValue(true)));
                     hasSupplements = true;
                 } else {
                     newSeq.add(sequence.itemAt(i));
@@ -608,7 +609,7 @@ public class Eval extends BasicFunction {
             } else if (child.getNodeType() == Node.ELEMENT_NODE && "current-dateTime".equals(child.getLocalName())) {
                 final Element elem = (Element) child;
                 //TODO : error check
-                final DateTimeValue dtv = new DateTimeValue(elem.getAttribute("value"));
+                final DateTimeValue dtv = new DateTimeValue(this, elem.getAttribute("value"));
                 innerContext.setCalendar(dtv.calendar);
             } else if (child.getNodeType() == Node.ELEMENT_NODE && "implicit-timezone".equals(child.getLocalName())) {
                 final Element elem = (Element) child;
@@ -659,7 +660,7 @@ public class Eval extends BasicFunction {
             final InputSource src = new InputSource(isr);
 
             xr = parserPool.borrowXMLReader();
-            final SAXAdapter adapter = new SAXAdapter(context);
+            final SAXAdapter adapter = new SAXAdapter(this, context);
             xr.setContentHandler(adapter);
             xr.setProperty(Namespaces.SAX_LEXICAL_HANDLER, adapter);
             xr.parse(src);
