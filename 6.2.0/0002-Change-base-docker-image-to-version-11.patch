@@ -37,10 +37,11 @@ index 3db79c43ab..5f3f42bee0 100644
  
  # Copy over dependencies for Apache FOP, missing from GCR's JRE
  COPY --from=updated-jre /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
-@@ -86,6 +86,9 @@ ENV JAVA_TOOL_OPTIONS \
+@@ -85,7 +85,9 @@ ENV JAVA_TOOL_OPTIONS \
+   -Dexist.configurationFile=/exist/etc/conf.xml \
    -Djetty.home=/exist \
    -Dexist.jetty.config=/exist/etc/jetty/standard.enabled-jetty-configs \
-   -XX:+UseG1GC \
+-  -XX:+UseG1GC \
 +  -XX:+UnlockExperimentalVMOptions \
 +  -XX:+UseShenandoahGC \
 +  -XX:ShenandoahGCHeuristics=compact \
