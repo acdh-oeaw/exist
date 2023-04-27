@@ -1,0 +1,59 @@
+From 5273935d9b4ed39de3e4cb7b1a80f1de63715640 Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 27 Apr 2023 18:42:44 +0200
+Subject: [PATCH 09/10] Fix: http is now blocked
+
+---
+ extensions/indexes/spatial/ivysettings.xml   | 6 +++---
+ extensions/modules/cqlparser/ivysettings.xml | 2 +-
+ extensions/modules/cqlparser/pom.xml         | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/extensions/indexes/spatial/ivysettings.xml b/extensions/indexes/spatial/ivysettings.xml
+index efe4209f7a..3e2a2a2a74 100644
+--- a/extensions/indexes/spatial/ivysettings.xml
++++ b/extensions/indexes/spatial/ivysettings.xml
+@@ -22,10 +22,10 @@
+     <settings defaultResolver="local-chain"/>
+     <resolvers>
+         <ibiblio name="ibiblio-maven2" m2compatible="true"/>
+-        <ibiblio name="java-net-maven2" root="http://download.java.net/maven/2/" m2compatible="true"/>
+-        <ibiblio name="maven" root="http://mvnrepository.com/artifact/" m2compatible="true"/>
++        <ibiblio name="java-net-maven2" root="https://download.java.net/maven/2/" m2compatible="true"/>
++        <ibiblio name="maven" root="https://mvnrepository.com/artifact/" m2compatible="true"/>
+         <ibiblio name="exist-db" root="http://repo.evolvedbinary.com/repository/exist-db/" m2compatible="true"/>
+-        <ibiblio name="osgeo" root="http://download.osgeo.org/webdav/geotools/" m2compatible="true"/>
++        <ibiblio name="osgeo" root="https://download.osgeo.org/webdav/geotools/" m2compatible="true"/>
+         <ibiblio name="atlassian" root="https://packages.atlassian.com/maven-3rdparty" m2compatible="true"/>
+         <!-- filesystem name="project-built" checksums="">
+             <ivy pattern="lib/ivy.xml"/>
+diff --git a/extensions/modules/cqlparser/ivysettings.xml b/extensions/modules/cqlparser/ivysettings.xml
+index 5eded36a75..f1c722b94f 100644
+--- a/extensions/modules/cqlparser/ivysettings.xml
++++ b/extensions/modules/cqlparser/ivysettings.xml
+@@ -25,7 +25,7 @@
+     <resolvers>
+         <chain name="chain">
+             <ibiblio name="central" m2compatible="true"/>
+-            <ibiblio name="custom" m2compatible="true" root="http://maven.indexdata.com"/>
++            <ibiblio name="custom" m2compatible="true" root="https://maven.indexdata.com"/>
+         </chain>
+     </resolvers>
+ </ivysettings>
+\ No newline at end of file
+diff --git a/extensions/modules/cqlparser/pom.xml b/extensions/modules/cqlparser/pom.xml
+index b6cfa0b86e..a4ec6ec281 100644
+--- a/extensions/modules/cqlparser/pom.xml
++++ b/extensions/modules/cqlparser/pom.xml
+@@ -49,7 +49,7 @@
+     <repositories>
+         <repository>
+             <id>cql-java-repo</id>
+-            <url>http://maven.indexdata.com</url>
++            <url>https://maven.indexdata.com</url>
+         </repository>
+     </repositories>
+ 
+-- 
+2.40.1.windows.1
+

@@ -1,0 +1,44 @@
+From b6a21bb514142989983f9c4aa5bcf0524ce34af4 Mon Sep 17 00:00:00 2001
+From: Omar Siam <Omar.Siam@oeaw.ac.at>
+Date: Thu, 27 Apr 2023 17:35:51 +0200
+Subject: [PATCH 9/9] Need to make dependencies of copy plugin explicit
+
+---
+ exist-distribution/pom.xml | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/exist-distribution/pom.xml b/exist-distribution/pom.xml
+index 09a00884ff..bcdbab2760 100644
+--- a/exist-distribution/pom.xml
++++ b/exist-distribution/pom.xml
+@@ -500,6 +500,13 @@
+                         </configuration>
+                     </execution>
+                 </executions>
++                <dependencies>
++                    <dependency>
++                        <groupId>org.codehaus.plexus</groupId>
++                        <artifactId>plexus-utils</artifactId>
++                        <version>3.5.1</version>
++                    </dependency>
++                </dependencies>
+             </plugin>
+ 
+             <plugin>
+@@ -739,6 +746,13 @@
+                         </configuration>
+                     </execution>
+                 </executions>
++                <dependencies>
++                    <dependency>
++                        <groupId>org.codehaus.plexus</groupId>
++                        <artifactId>plexus-utils</artifactId>
++                        <version>3.5.1</version>
++                    </dependency>
++                </dependencies>
+             </plugin>
+ 
+             <plugin>
+-- 
+2.40.0.windows.1
+
