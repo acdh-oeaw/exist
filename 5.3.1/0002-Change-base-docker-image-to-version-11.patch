@@ -7,29 +7,41 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
-index f9c103e690..bf7ac4922b 100644
---- "a/exist-docker/src/main/resources-filtered/Dockerfile"
-+++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
-@@ -20,7 +20,7 @@
+diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
+index 9c79fe9618..84388db687 100644
+--- a/exist-docker/src/main/resources-filtered/Dockerfile
++++ b/exist-docker/src/main/resources-filtered/Dockerfile
+@@ -20,18 +20,21 @@
  # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  #
  
 -FROM openjdk:8-jdk-slim as builder
-+FROM openjdk:11-slim-bullseye as builder
- 
- # Install tools required by FOP
- WORKDIR /usr/local
-@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+-
+-# Install tools required by FOP
+-WORKDIR /usr/local
+-RUN apt-get update && apt-get install -y --no-install-recommends \
++# Install latest JRE 11 in Debian Stretch (which is the base of gcr.io/distroless/java11-debian11)
++FROM debian:bullseye-slim as builder
++RUN apt-get update && apt-get -y dist-upgrade
++RUN apt-get install -y --no-install-recommends openjdk-11-jre-headless \
+   expat \
+   fontconfig \
    liblcms2-2 \
-   fonts-dejavu-core
- 
+-  fonts-dejavu-core
+-
 -FROM gcr.io/distroless/java:8
-+FROM gcr.io/distroless/java11-debian11
++  fonts-dejavu-core    # Install tools required by FOP
  
++FROM gcr.io/distroless/java11-debian11
++ 
++COPY --from=builder /etc/java-11-openjdk /etc/java-11-openjdk
++COPY --from=builder /usr/lib/jvm/java-11-openjdk-amd64 /usr/lib/jvm/java-11-openjdk-amd64
++COPY --from=builder /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64 /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64
++ 
  # Copy over dependancies for Apache FOP, missing from gcr's JRE
  COPY --from=builder /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
-@@ -83,9 +83,10 @@ ENV JAVA_TOOL_OPTIONS \
+ COPY --from=builder /usr/lib/x86_64-linux-gnu/liblcms2.so.2 /usr/lib/x86_64-linux-gnu/liblcms2.so.2
+@@ -83,9 +86,10 @@ ENV JAVA_TOOL_OPTIONS \
    -Dexist.configurationFile=/exist/etc/conf.xml \
    -Djetty.home=/exist \
    -Dexist.jetty.config=/exist/etc/jetty/standard.enabled-jetty-configs \

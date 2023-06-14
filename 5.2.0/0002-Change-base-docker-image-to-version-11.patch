@@ -7,25 +7,32 @@ Subject: [PATCH 2/7] Change base docker image to version 11.
  exist-docker/src/main/resources-filtered/Dockerfile | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git "a/exist-docker/src/main/resources-filtered/Dockerfile" "b/exist-docker/src/main/resources-filtered/Dockerfile"
-index 9e87214d07..22e64c2542 100644
---- "a/exist-docker/src/main/resources-filtered/Dockerfile"
-+++ "b/exist-docker/src/main/resources-filtered/Dockerfile"
-@@ -1,4 +1,4 @@
+diff --git a/exist-docker/src/main/resources-filtered/Dockerfile b/exist-docker/src/main/resources-filtered/Dockerfile
+index 9e87214d07..bd453387e0 100644
+--- a/exist-docker/src/main/resources-filtered/Dockerfile
++++ b/exist-docker/src/main/resources-filtered/Dockerfile
+@@ -1,14 +1,17 @@
 -FROM openjdk:8-jdk-slim as builder
-+FROM openjdk:11-slim-bullseye as builder
- 
- # Install tools required by FOP
- WORKDIR /usr/local
-@@ -28,9 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+-
+-# Install tools required by FOP
+-WORKDIR /usr/local
+-RUN apt-get update && apt-get install -y --no-install-recommends \
++# Install latest JRE 11 in Debian Stretch (which is the base of gcr.io/distroless/java:11-debian11)
++FROM debian:bullseye-slim as builder
++RUN apt-get update && apt-get -y dist-upgrade
++RUN apt-get install -y --no-install-recommends openjdk-11-jre-headless \
    expat \
    fontconfig \
    liblcms2-2 \
 -  ttf-dejavu-core
-+  fonts-dejavu-core
++  fonts-dejavu-core    # Install tools required by FOP
++
++FROM gcr.io/distroless/java11-debian11
  
 -FROM gcr.io/distroless/java:8
-+FROM gcr.io/distroless/java11-debian11
++COPY --from=builder /etc/java-11-openjdk /etc/java-11-openjdk
++COPY --from=builder /usr/lib/jvm/java-11-openjdk-amd64 /usr/lib/jvm/java-11-openjdk-amd64
++COPY --from=builder /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64 /usr/share/gdb/auto-load/usr/lib/jvm/java-11-openjdk-amd64
  
  # Copy over dependancies for Apache FOP, missing from gcr's JRE
  COPY --from=builder /usr/lib/x86_64-linux-gnu/libfreetype.so.6 /usr/lib/x86_64-linux-gnu/libfreetype.so.6
