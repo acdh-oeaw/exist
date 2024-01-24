@@ -1,0 +1,48 @@
+name: build and push
+on:
+  push: {}
+  repository_dispatch:
+    types: [run]
+  workflow_dispatch: {}
+  workflow_call: {}
+jobs:
+  build_and_push_to_registry:
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      matrix:
+        version: [5.2.0, 5.3.1, 6.0.1, 6.2.0]
+    env:
+      EXIST_VERSION: ${{ matrix.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3 
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build and push for exist-db ${{ env.EXIST_VERSION }}
+        run: |
+           docker pull gcr.io/distroless/java11-debian11
+           docker pull debian:bullseye-slim
+           mkdir -p patches/$EXIST_VERSION
+           rm -rf *.yml exist-core/src/*.* exist-deb/pom.xml exist-jetty-config/src/main/resources/org/exist/jetty/etc/*.* extensions/betterform/*.* extensions/contentextraction/src/test/*.* extensions/exquery/*.*
+           git reset --hard
+           cp -R $EXIST_VERSION/* patches/$EXIST_VERSION/
+           git checkout eXist-$EXIST_VERSION -b $EXIST_VERSION-java11-ShenGC
+           for p in $(ls patches/$EXIST_VERSION)
+           do patch -p1 < patches/$EXIST_VERSION/$p
+           done
+           mvn -DskipTests -Pdocker clean package
+           docker tag existdb/existdb:$EXIST_VERSION ghcr.io/${{ github.repository }}/existdb:$EXIST_VERSION-java11-ShenGC
+           docker rmi existdb/existdb:$EXIST_VERSION
+           docker push ghcr.io/${{ github.repository }}/existdb:$EXIST_VERSION-java11-ShenGC
+
